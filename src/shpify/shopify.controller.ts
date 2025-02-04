@@ -12,7 +12,7 @@ export class ShopifyController {
 
   @Put('products/:id')
   async updateProduct(@Param('id') id: string, @Body() updateData: any) {
-    return this.shopifyService.updateProduct(parseInt(id, 10), updateData);
+    return this.shopifyService.updateProduct(id, updateData);
   }
 
   @Get('customers')
@@ -22,6 +22,6 @@ export class ShopifyController {
 
   @Put('customers/:id')
   async updateCustomer(@Param('id') id: string, @Body() updateData: any) {
-    return this.shopifyService.updateCustomer(parseInt(id, 10), updateData);
+    return this.shopifyService.updateCustomer(id, updateData);
   }
 }

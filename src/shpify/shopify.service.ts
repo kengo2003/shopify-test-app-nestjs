@@ -206,4 +206,65 @@ export class ShopifyService {
   //   );
   //   return response.data;
   // }
+
+  // GraphQL決済API
+  async createDraftOrder(productId: string, quantity: number) {
+    const mutation = `
+    mutation draftOrderCreate($input: DraftOrderInput!) {
+      draftOrderCreate(input: $input) {
+        draftOrder {
+          id
+          invoiceUrl
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+    const variables = {
+      input: {
+        lineItems: [
+          {
+            variantId: `gid://shopify/ProductVariant/${productId}`,
+            quantity: quantity,
+          },
+        ],
+        useCustomerDefaultAddress: true,
+      },
+    };
+
+    try {
+      const response = await axios.post(
+        this.shopifyUrl,
+        { query: mutation, variables },
+        { headers: this.headers },
+      );
+
+      console.log(
+        'Shopify GraphQL Response:',
+        JSON.stringify(response.data, null, 2),
+      );
+
+      if (!response.data || !response.data.data) {
+        throw new Error('Invalid response from Shopify API');
+      }
+
+      const draftOrderData = response.data.data.draftOrderCreate;
+
+      if (!draftOrderData || draftOrderData.userErrors.length) {
+        console.error('Shopify GraphQL Error:', draftOrderData.userErrors);
+        throw new Error(
+          draftOrderData.userErrors.map((err) => err.message).join(', '),
+        );
+      }
+
+      return draftOrderData.draftOrder.invoiceUrl; // ここで支払いURLを取得
+    } catch (error) {
+      console.error('Shopify API Error:', error);
+      throw new Error('Failed to create draft order');
+    }
+  }
 }

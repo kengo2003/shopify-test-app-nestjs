@@ -21,6 +21,13 @@ export class ShopifyService {
             node {
               id
               title
+              metafields(first: 10) {
+                id
+                namespace
+                key
+                value
+                type
+              }
               variants(first: 5) {
                 edges {
                   node {
@@ -265,6 +272,19 @@ export class ShopifyService {
     } catch (error) {
       console.error('Shopify API Error:', error);
       throw new Error('Failed to create draft order');
+    }
+  }
+
+  async handleOrderWebhook(orderData: any) {
+    const pointsEarned = orderData.line_items.reduce((acc, item) => {
+      if (item.sku.startsWith('point_')) {
+        return acc + parseInt(item.sku.replace('point_', ''));
+      }
+      return acc;
+    }, 0);
+    if (pointsEarned > 0) {
+      console.log(`ポイント付与: ${pointsEarned}ポイント`);
+      // DBにユーザー情報にポイントを保存
     }
   }
 }

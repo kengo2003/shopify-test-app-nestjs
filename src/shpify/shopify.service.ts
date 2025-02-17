@@ -21,12 +21,14 @@ export class ShopifyService {
             node {
               id
               title
-              metafields(first: 10) {
-                id
-                namespace
-                key
-                value
-                type
+              metafields(first: 5) {
+                edges {
+                  node {
+                    namespace
+                    key
+                    value
+                  }
+                }
               }
               variants(first: 5) {
                 edges {

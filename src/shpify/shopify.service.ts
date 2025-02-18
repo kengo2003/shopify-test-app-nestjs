@@ -49,6 +49,8 @@ export class ShopifyService {
       { query },
       { headers: this.headers },
     );
+    // コスト情報
+    console.log('response:', response.data.extensions);
     return response.data.data.products.edges.map((edge) => edge.node);
   }
 

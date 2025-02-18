@@ -50,11 +50,22 @@ export class GachaService {
       { query },
       { headers: this.headers },
     );
+
+    // コスト情報
+    console.log('response:', response.data.extensions);
+
+    const resultValue =
+      response.data.data.product.metafields.edges[0].node.value;
+    console.log('Result Value:', resultValue);
+    console.log(`Type:, ${typeof resultValue}`);
+
+    return JSON.parse(resultValue);
+
     // console.log(
     //   `response: ${response.data.data.product.metafields.edges[0].node.value}`,
     // );
-    return JSON.parse(
-      response.data.data.product.metafields.edges[0].node.value,
-    );
+    // return JSON.parse(
+    //   response.data.data.product.metafields.edges[0].node.value,
+    // );
   }
 }

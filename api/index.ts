@@ -2,6 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express, { Request, Response } from 'express';
 import { AppModule } from '../src/app.module';
+import expressPkg from 'express/package.json';
+
+console.log('Running with express version:', expressPkg.version);
 
 let cachedServer: express.Express;
 

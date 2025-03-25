@@ -291,4 +291,27 @@ export class ShopifyService {
       // DBにユーザー情報にポイントを保存
     }
   }
+
+  async handleDraftOrderDelete(payload: any) {
+    console.log(`Draft Order Deleted: ${JSON.stringify(payload)}`);
+    // const draftOrderId = payload.id;
+    const lineItems = payload.line_items || [];
+    const points = lineItems.reduce((sum, item) => {
+      const itemPoints = item.properties?.['ポイント変換値'] || 0;
+      return sum + itemPoints;
+    }, 0);
+
+    const userId = payload.customer?.id;
+    console.log(`userID: ${userId}, Point: ${points}`);
+
+    if (userId && points > 0) {
+      await this.addPointsToUser(userId, points);
+    }
+    return { message: 'Webhook processed successfully' };
+  }
+
+  async addPointsToUser(userId: number, points: number) {
+    // データベースの処理
+    console.log(`${userId}に${points}付与`);
+  }
 }

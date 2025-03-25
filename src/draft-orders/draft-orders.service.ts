@@ -27,10 +27,11 @@ export class DraftOrdersService {
       // console.log('filtered:', filtered);
       return filtered;
     } catch (err) {
-      console.error(
-        'Draft Order API error:',
-        err.response?.data || err.message,
-      );
+      // console.error(
+      //   'Draft Order API error:',
+      //   err.response?.data || err.message,
+      // );
+      console.log(err);
     }
   }
 

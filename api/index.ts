@@ -25,6 +25,12 @@ async function bootstrap() {
 
   await app.init();
   cachedServer = adapter.getInstance();
+
+  cachedServer.addHook('onRequest', (req, reply, done) => {
+    console.log(`[fastify] ${req.method} ${req.url}`);
+    done();
+  });
+
   console.log('[bootstrap] Done');
 }
 
@@ -37,7 +43,5 @@ export default async function handler(event: any, context: any) {
   }
 
   console.log('[handler] Proxying...');
-  return proxy(cachedServer, event, context, {
-    returnReply: true,
-  } as any);
+  return proxy(cachedServer, event, context, ['PROMISE']);
 }

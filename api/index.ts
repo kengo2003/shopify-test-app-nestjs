@@ -9,6 +9,8 @@ import { proxy } from 'aws-serverless-fastify';
 let cachedServer: any;
 
 async function bootstrap() {
+  console.log('[bootstrap] Start');
+
   const adapter = new FastifyAdapter();
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
@@ -22,35 +24,28 @@ async function bootstrap() {
     credentials: false,
   });
 
-  await app.init();
-
   const fastifyInstance = adapter.getInstance();
+  fastifyInstance.addHook('onRequest', (req, reply, done) => {
+    console.log(`[fastify] incoming request: ${req.method} ${req.url}`);
+    done();
+  });
+
+  await app.init();
   cachedServer = fastifyInstance;
+
+  console.log('[bootstrap] Done');
 }
-console.log('[handler] received request');
+
 export default async function handler(event: any, context: any) {
   console.log('[handler] start');
-  if (!cachedServer) {
-    console.log('[handler] bootstrap');
 
+  if (!cachedServer) {
+    console.log('[handler] bootstrapping...');
     await bootstrap();
   }
+
   console.log('[handler] proxy start');
+  console.log('[handler] event:', JSON.stringify(event));
 
   return proxy(cachedServer, event, context, ['PROMISE']);
 }
-
-// export default async function handler() {
-//   return {
-//     statusCode: 200,
-//     body: 'Hello from temporary test handler!',
-//   };
-// }
-
-// export default async function handler(req: any, res: any) {
-//   console.log('[handler] INSIDE FUNCTION');
-//   return {
-//     statusCode: 200,
-//     body: 'It works!',
-//   };
-// }

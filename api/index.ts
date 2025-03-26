@@ -10,7 +10,6 @@ let cachedServer: any;
 
 async function bootstrap() {
   console.log('[bootstrap] Start');
-
   const adapter = new FastifyAdapter();
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
@@ -24,28 +23,23 @@ async function bootstrap() {
     credentials: false,
   });
 
-  const fastifyInstance = adapter.getInstance();
-  fastifyInstance.addHook('onRequest', (req, reply, done) => {
-    console.log(`[fastify] incoming request: ${req.method} ${req.url}`);
-    done();
-  });
-
   await app.init();
-  cachedServer = fastifyInstance;
+
+  await app.listen(3000);
+
+  cachedServer = adapter.getInstance();
 
   console.log('[bootstrap] Done');
 }
 
 export default async function handler(event: any, context: any) {
-  console.log('[handler] start');
+  console.log('[handler] INSIDE FUNCTION');
 
   if (!cachedServer) {
-    console.log('[handler] bootstrapping...');
+    console.log('[handler] Bootstrapping...');
     await bootstrap();
   }
 
-  console.log('[handler] proxy start');
-  console.log('[handler] event keys:', Object.keys(event));
-
+  console.log('[handler] Proxying...');
   return proxy(cachedServer, event, context, ['PROMISE']);
 }

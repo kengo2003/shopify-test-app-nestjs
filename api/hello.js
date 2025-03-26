@@ -1,6 +1,3 @@
 export default async function handler(req, res) {
-  return {
-    statusCode: 200,
-    body: 'Hello from /api/hello!',
-  };
+  return res.status(200).send('Hello from Vercel!');
 }

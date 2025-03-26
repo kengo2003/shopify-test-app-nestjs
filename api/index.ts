@@ -38,7 +38,6 @@ export default async function handler(event: any, context: any) {
 
   console.log('[handler] Proxying...');
   return proxy(cachedServer, event, context, {
-    binary: false,
     returnReply: true,
   } as any);
 }

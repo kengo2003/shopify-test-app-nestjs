@@ -4,17 +4,13 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { AppModule } from '../src/app.module';
-import { proxy } from 'aws-serverless-fastify';
 
-let cachedServer: any;
+let app: NestFastifyApplication;
 
 async function bootstrap() {
   console.log('[bootstrap] Start');
   const adapter = new FastifyAdapter();
-  const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule,
-    adapter,
-  );
+  app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter);
 
   app.enableCors({
     origin: ['https://card-function-test.myshopify.com'],
@@ -24,28 +20,34 @@ async function bootstrap() {
   });
 
   await app.init();
-  cachedServer = adapter.getInstance();
-
-  cachedServer.addHook('onRequest', (req, reply, done) => {
-    console.log(`[fastify] ${req.method} ${req.url}`);
-    done();
-  });
-  cachedServer.addHook('onSend', (req, reply, payload, done) => {
-    console.log('[fastify] Sending response:', payload);
-    done();
-  });
-
   console.log('[bootstrap] Done');
 }
 
-export default async function handler(event: any, context: any) {
+export default async function handler(req: any, res: any) {
   console.log('[handler] INSIDE FUNCTION');
 
-  if (!cachedServer) {
+  if (!app) {
     console.log('[handler] Bootstrapping...');
     await bootstrap();
   }
 
-  console.log('[handler] Proxying...');
-  return proxy(cachedServer, event, context, ['PROMISE']);
+  const instance = app.getHttpAdapter().getInstance();
+
+  console.log(`[handler] Injecting request: ${req.method} ${req.url}`);
+
+  const response = await instance.inject({
+    method: req.method,
+    url: req.url,
+    payload: req.body,
+    headers: req.headers,
+  });
+
+  console.log('[handler] Response status:', response.statusCode);
+  console.log('[handler] Response body:', response.body);
+
+  res.statusCode = response.statusCode;
+  for (const [key, value] of Object.entries(response.headers)) {
+    res.setHeader(key, value as string);
+  }
+  res.end(response.body);
 }

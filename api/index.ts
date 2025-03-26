@@ -1,35 +1,37 @@
 import { NestFactory } from '@nestjs/core';
-import { ExpressAdapter } from '@nestjs/platform-express';
-import express, { Request, Response } from 'express';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { AppModule } from '../src/app.module';
+import { proxy } from 'aws-serverless-fastify';
 
-let cachedApp: ReturnType<typeof express> | null = null;
+let cachedServer: any;
 
-export default async function handler(req: Request, res: Response) {
-  if (!cachedApp) {
-    const expressInstance = express();
+async function bootstrap() {
+  const adapter = new FastifyAdapter();
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    adapter,
+  );
 
-    expressInstance.use(express.json());
-    expressInstance.use(express.urlencoded({ extended: true }));
+  app.enableCors({
+    origin: ['https://card-function-test.myshopify.com'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: false,
+  });
 
-    const app = await NestFactory.create(
-      AppModule,
-      new ExpressAdapter(expressInstance),
-      {
-        logger: ['error', 'warn', 'log'],
-      },
-    );
+  await app.init();
 
-    app.enableCors({
-      origin: ['https://card-function-test.myshopify.com'],
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      credentials: false,
-    });
+  const fastifyInstance = adapter.getInstance(); // ✅ ここから本物の Fastify を取得
+  cachedServer = fastifyInstance;
+}
 
-    await app.init();
-    cachedApp = expressInstance;
+export default async function handler(event: any, context: any) {
+  if (!cachedServer) {
+    await bootstrap();
   }
 
-  return cachedApp(req, res);
+  return proxy(cachedServer, event, context, ['PROMISE']);
 }

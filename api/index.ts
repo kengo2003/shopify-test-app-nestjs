@@ -13,7 +13,10 @@ async function bootstrap() {
   app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter);
 
   app.enableCors({
-    origin: ['https://card-function-test.myshopify.com'],
+    origin: [
+      'http://127.0.0.1:9292',
+      'https://card-function-test.myshopify.com',
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: false,
@@ -24,16 +27,14 @@ async function bootstrap() {
 }
 
 export default async function handler(req: any, res: any) {
-  console.log('[handler] INSIDE FUNCTION');
+  console.log('[handler] Incoming request:', req.method, req.url);
 
   if (!app) {
-    console.log('[handler] Bootstrapping...');
+    console.log('[handler] Bootstrapping Nest app...');
     await bootstrap();
   }
 
   const instance = app.getHttpAdapter().getInstance();
-
-  console.log(`[handler] Injecting request: ${req.method} ${req.url}`);
 
   const response = await instance.inject({
     method: req.method,
@@ -42,8 +43,26 @@ export default async function handler(req: any, res: any) {
     headers: req.headers,
   });
 
-  console.log('[handler] Response status:', response.statusCode);
-  console.log('[handler] Response body:', response.body);
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'http://127.0.0.1:9292',
+    'https://card-function-test.myshopify.com',
+  ];
+
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS',
+  );
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 200;
+    return res.end();
+  }
 
   res.statusCode = response.statusCode;
   for (const [key, value] of Object.entries(response.headers)) {

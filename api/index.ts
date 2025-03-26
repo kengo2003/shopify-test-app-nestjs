@@ -40,9 +40,17 @@ console.log('[handler] received request');
 //   return proxy(cachedServer, event, context, ['PROMISE']);
 // }
 
-export default async function handler() {
+// export default async function handler() {
+//   return {
+//     statusCode: 200,
+//     body: 'Hello from temporary test handler!',
+//   };
+// }
+
+export default async function handler(req: any, res: any) {
+  console.log('[handler] INSIDE FUNCTION');
   return {
     statusCode: 200,
-    body: 'Hello from temporary test handler!',
+    body: 'It works!',
   };
 }

@@ -23,12 +23,12 @@
     "@nestjs/common": "^10.0.0",
     "@nestjs/core": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
+    "@prisma/client": "^6.5.0",
     "axios": "^1.7.9",
     "dotenv": "^16.4.7",
+    "prisma": "^6.5.0",
     "reflect-metadata": "^0.1.13",
-    "rxjs": "^7.8.1",
-    "prisma": "^5.x.x",
-    "@prisma/client": "^5.x.x"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

@@ -12,6 +12,10 @@ export class DraftOrdersService {
     'Content-Type': 'application/json',
   };
 
+  async getHello() {
+    return 'Hello';
+  }
+
   async getDraftOrders(customerId: string) {
     console.log(customerId);
     try {
@@ -33,9 +37,5 @@ export class DraftOrdersService {
       // );
       console.log(err);
     }
-  }
-
-  async getHello() {
-    return 'Hello';
   }
 }

@@ -24,11 +24,7 @@ async function bootstrap() {
   });
 
   await app.init();
-
-  await app.listen(3000);
-
   cachedServer = adapter.getInstance();
-
   console.log('[bootstrap] Done');
 }
 

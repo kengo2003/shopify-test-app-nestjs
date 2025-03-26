@@ -30,6 +30,10 @@ async function bootstrap() {
     console.log(`[fastify] ${req.method} ${req.url}`);
     done();
   });
+  cachedServer.addHook('onSend', (req, reply, payload, done) => {
+    console.log('[fastify] Sending response:', payload);
+    done();
+  });
 
   console.log('[bootstrap] Done');
 }

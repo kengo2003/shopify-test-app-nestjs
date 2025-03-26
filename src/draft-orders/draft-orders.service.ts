@@ -35,7 +35,7 @@ export class DraftOrdersService {
     }
   }
 
-  async getHallo() {
-    return 'Hallo';
+  async getHello() {
+    return 'Hello';
   }
 }

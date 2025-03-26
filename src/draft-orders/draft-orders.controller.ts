@@ -1,13 +1,14 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { DraftOrdersService } from './draft-orders.service';
 
-@Controller('apps/draft-orders')
+@Controller()
+// @Controller('apps/draft-orders')
 export class DraftOrdersController {
   constructor(private readonly draftOrdersService: DraftOrdersService) {}
 
-  @Get('hallo')
+  @Get()
   async getHallo() {
-    return this.draftOrdersService.getHallo();
+    return this.draftOrdersService.getHello();
   }
 
   @Get(':customerId')

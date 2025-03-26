@@ -24,14 +24,25 @@ async function bootstrap() {
 
   await app.init();
 
-  const fastifyInstance = adapter.getInstance(); // ✅ ここから本物の Fastify を取得
+  const fastifyInstance = adapter.getInstance();
   cachedServer = fastifyInstance;
 }
+console.log('[handler] received request');
+// export default async function handler(event: any, context: any) {
+//   console.log('[handler] start');
+//   if (!cachedServer) {
+//     console.log('[handler] bootstrap');
 
-export default async function handler(event: any, context: any) {
-  if (!cachedServer) {
-    await bootstrap();
-  }
+//     await bootstrap();
+//   }
+//   console.log('[handler] proxy start');
 
-  return proxy(cachedServer, event, context, ['PROMISE']);
+//   return proxy(cachedServer, event, context, ['PROMISE']);
+// }
+
+export default async function handler() {
+  return {
+    statusCode: 200,
+    body: 'Hello from temporary test handler!',
+  };
 }

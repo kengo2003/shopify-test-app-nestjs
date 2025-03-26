@@ -45,7 +45,7 @@ export default async function handler(event: any, context: any) {
   }
 
   console.log('[handler] proxy start');
-  console.log('[handler] event:', JSON.stringify(event));
+  console.log('[handler] event keys:', Object.keys(event));
 
   return proxy(cachedServer, event, context, ['PROMISE']);
 }

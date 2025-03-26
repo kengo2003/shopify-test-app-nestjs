@@ -46,4 +46,10 @@ export class ShopifyController {
     await this.shopifyService.handleOrderWebhook(req.body);
     res.status(200).send('Webhook received');
   }
+
+  @Post('draft_orders/delete')
+  async handleDraftOrderDelete(@Body() body: any, @Res() res) {
+    await this.shopifyService.handleDraftOrderDelete(body);
+    res.status(200).send('Webhook received');
+  }
 }

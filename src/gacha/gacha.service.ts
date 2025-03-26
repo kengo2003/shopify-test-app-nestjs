@@ -28,12 +28,18 @@ export class GachaService {
     return { cardId: selectedCardId };
   }
 
-  private async getGachaLineup(gachaId: string) {
+  async getGachaLineup(gachaId: string) {
     const query = `
       {
         product(id: "gid://shopify/Product/${gachaId}") {
-          metafield(namespace: "custom", key: "gacha_lineup") {
-            value
+          metafields(first: 5) {
+            edges {
+              node {
+                namespace
+                key
+                value
+              }
+            }
           }
         }
       }
@@ -44,6 +50,22 @@ export class GachaService {
       { query },
       { headers: this.headers },
     );
-    return JSON.parse(response.data.data.product.metafield.value);
+
+    // コスト情報
+    console.log('response:', response.data.extensions);
+
+    const resultValue =
+      response.data.data.product.metafields.edges[0].node.value;
+    console.log('Result Value:', resultValue);
+    console.log(`Type:, ${typeof resultValue}`);
+
+    return JSON.parse(resultValue);
+
+    // console.log(
+    //   `response: ${response.data.data.product.metafields.edges[0].node.value}`,
+    // );
+    // return JSON.parse(
+    //   response.data.data.product.metafields.edges[0].node.value,
+    // );
   }
 }

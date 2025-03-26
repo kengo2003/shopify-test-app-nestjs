@@ -28,17 +28,17 @@ async function bootstrap() {
   cachedServer = fastifyInstance;
 }
 console.log('[handler] received request');
-// export default async function handler(event: any, context: any) {
-//   console.log('[handler] start');
-//   if (!cachedServer) {
-//     console.log('[handler] bootstrap');
+export default async function handler(event: any, context: any) {
+  console.log('[handler] start');
+  if (!cachedServer) {
+    console.log('[handler] bootstrap');
 
-//     await bootstrap();
-//   }
-//   console.log('[handler] proxy start');
+    await bootstrap();
+  }
+  console.log('[handler] proxy start');
 
-//   return proxy(cachedServer, event, context, ['PROMISE']);
-// }
+  return proxy(cachedServer, event, context, ['PROMISE']);
+}
 
 // export default async function handler() {
 //   return {
@@ -47,10 +47,10 @@ console.log('[handler] received request');
 //   };
 // }
 
-export default async function handler(req: any, res: any) {
-  console.log('[handler] INSIDE FUNCTION');
-  return {
-    statusCode: 200,
-    body: 'It works!',
-  };
-}
+// export default async function handler(req: any, res: any) {
+//   console.log('[handler] INSIDE FUNCTION');
+//   return {
+//     statusCode: 200,
+//     body: 'It works!',
+//   };
+// }

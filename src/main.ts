@@ -12,7 +12,10 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: ['https://card-function-test.myshopify.com'],
+    origin: [
+      'http://127.0.0.1:9292',
+      'https://card-function-test.myshopify.com',
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: false,

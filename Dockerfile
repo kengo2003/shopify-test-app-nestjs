@@ -7,6 +7,9 @@ WORKDIR /app
 COPY package.json yarn.lock ./
 RUN yarn install
 
+# Prismaをグローバルにインストール
+RUN yarn add prisma --dev
+
 # ソースコードをコピー
 COPY . .
 

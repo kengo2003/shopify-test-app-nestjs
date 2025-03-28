@@ -16,19 +16,22 @@ export class DraftOrdersController {
   }
 
   @Post('create')
-  async createOrder(@Body() body: { draftOrderId: string }) {
-    const result = this.draftOrdersService.createOrder(body.draftOrderId);
+  async createOrder(@Body() body: { orderId: string }) {
+    const result = await this.draftOrdersService.createOrder(body.orderId);
     return {
       message: 'Draft order completed successfully',
-      order: result,
+      order: result.order,
     };
   }
 
-  // @Post('delete')
-  // async handleDraftOrderDelete(
-  //   @Body() body: { productId: string; quantity: number },
-  // ) {
-  //   await this.draftOrdersService.handleDraftOrderDelete(body);
-  // res.status(200).send('Webhook received');
-  // }
+  @Post('delete')
+  async deleteOrder(
+    @Body() body: { orderId: string; userId: string; points: number },
+  ) {
+    return this.draftOrdersService.deleteOrder(
+      body.orderId,
+      body.userId,
+      body.points,
+    );
+  }
 }

@@ -73,17 +73,25 @@ export class DraftOrdersService {
     const data = response.data;
 
     if (data.errors) {
-      throw new Error(`Shopify GraphQL error: ${JSON.stringify(data.errors)}`);
+      console.error('[createOrder] GraphQL error:', data.errors);
+      throw new Error('Shopify GraphQL error');
     }
 
     const result = data.data.draftOrderComplete;
 
     if (result.userErrors.length > 0) {
-      throw new Error(
-        `Shopify userErrors: ${JSON.stringify(result.userErrors)}`,
-      );
+      console.error('[createOrder] userErrors:', result.userErrors);
+      throw new Error('Shopify userErrors occurred');
     }
 
     return result;
+  }
+
+  async deleteOrder(orderId: string, userId: string, points: number) {
+    // ここにポイント処理や下書き削除処理を実装
+    console.log(
+      `[deleteOrder] orderId: ${orderId}, userId: ${userId}, points: ${points}`,
+    );
+    return { message: 'Draft order deleted (stub)' };
   }
 }

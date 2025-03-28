@@ -8,6 +8,7 @@ dotenv.config();
 export class DraftOrdersService {
   private shopifyUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/draft_orders.json`;
   private shopifyGraphqlUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/graphql.json`;
+  private shopifyRestBase = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01`;
   private headers = {
     'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
     'Content-Type': 'application/json',
@@ -84,7 +85,25 @@ export class DraftOrdersService {
       throw new Error('Shopify userErrors occurred');
     }
 
+    try {
+      await this.delete(draftOrderId);
+    } catch (err) {
+      console.error('[createOrder] Error:', err);
+    }
+    //下書き注文を削除
     return result.draftOrder.order;
+  }
+
+  async delete(draftOrderId: string) {
+    try {
+      const url = `${this.shopifyRestBase}/draft_orders/${draftOrderId}.json`;
+      await axios.delete(url, { headers: this.headers });
+
+      return { message: `[delete] Draft order ${draftOrderId}` };
+    } catch (err) {
+      console.error('[delete] Error:', err);
+      throw new Error('Failed to delete draft order');
+    }
   }
 
   async deleteOrder(orderId: string, userId: string, points: number) {

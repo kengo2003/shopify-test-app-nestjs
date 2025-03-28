@@ -50,11 +50,11 @@ export class DraftOrdersService {
             id
             status
             completedAt
-          }
-          order {
-            id
-            name
-            createdAt
+            order {
+              id
+              name
+              createdAt
+            }
           }
           userErrors {
             field
@@ -84,7 +84,7 @@ export class DraftOrdersService {
       throw new Error('Shopify userErrors occurred');
     }
 
-    return result;
+    return result.draftOrder.order;
   }
 
   async deleteOrder(orderId: string, userId: string, points: number) {

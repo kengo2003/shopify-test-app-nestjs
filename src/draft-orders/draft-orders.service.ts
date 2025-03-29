@@ -24,25 +24,75 @@ export class DraftOrdersService {
       const response = await axios.get(this.shopifyUrl, {
         headers: this.headers,
       });
-      // console.log(response.data.draft_orders);
-      // return response.data;
 
-      const filtered = response.data.draft_orders.filter((order) => {
-        return String(order.customer?.id) === String(customerId);
+      const draftOrders = response.data.draft_orders.filter(
+        (order) => String(order.customer?.id) === String(customerId),
+      );
+      const productIds = draftOrders
+        .flatMap((order) => order.line_items.map((item) => item.product_id))
+        .filter((id, i, arr) => id && arr.indexOf(id) === i); // 重複除外
+
+      const metafields = await this.fetchProductMetafields(productIds);
+
+      const enrichedOrders = draftOrders.map((order) => {
+        const line_items = order.line_items.map((item) => {
+          const point = metafields[item.product_id] || null;
+          return {
+            ...item,
+            card_point_value: point,
+          };
+        });
+        return {
+          ...order,
+          line_items,
+        };
       });
-      // console.log('filtered:', filtered);
-      return filtered;
+
+      return enrichedOrders;
     } catch (err) {
-      // console.error(
-      //   'Draft Order API error:',
-      //   err.response?.data || err.message,
-      // );
-      console.log(err);
+      throw new Error('下書き注文の取得に失敗しました');
     }
   }
 
-  async createOrder(draftOrderId: string) {
-    const gid = `gid://shopify/DraftOrder/${draftOrderId}`;
+  async fetchProductMetafields(
+    productIds: number[],
+  ): Promise<Record<number, string>> {
+    if (productIds.length === 0) return {};
+
+    const idsGIDs = productIds
+      .map((id) => `"gid://shopify/Product/${id}"`)
+      .join(', ');
+
+    const query = `
+    {
+      nodes(ids: [${idsGIDs}]) {
+        ... on Product {
+          id
+          metafield(namespace: "custom", key: "card_point_value") {
+            value
+          }
+        }
+      }
+    }
+  `;
+
+    const res = await axios.post(
+      this.shopifyGraphqlUrl,
+      { query },
+      { headers: this.headers },
+    );
+    const result: Record<number, string> = {};
+    res.data.data.nodes.forEach((node) => {
+      const productId = Number(node.id.split('/').pop());
+      const point = node.metafield?.value || null;
+      result[productId] = point;
+    });
+
+    return result;
+  }
+
+  async createOrder(orderId: string) {
+    const gid = `gid://shopify/DraftOrder/${orderId}`;
 
     const query = `
       mutation {
@@ -86,31 +136,38 @@ export class DraftOrdersService {
     }
 
     try {
-      await this.delete(draftOrderId);
+      //下書き注文を削除
+      await this.delete(orderId);
     } catch (err) {
-      console.error('[createOrder] Error:', err);
+      console.error('[createOrder][delete] Error:', err);
     }
-    //下書き注文を削除
     return result.draftOrder.order;
   }
 
-  async delete(draftOrderId: string) {
+  //下書き注文削除関数
+  async delete(orderId: string) {
     try {
-      const url = `${this.shopifyRestBase}/draft_orders/${draftOrderId}.json`;
+      const url = `${this.shopifyRestBase}/draft_orders/${orderId}.json`;
       await axios.delete(url, { headers: this.headers });
 
-      return { message: `[delete] Draft order ${draftOrderId}` };
+      return { message: `[delete] Draft order ${orderId}` };
     } catch (err) {
       console.error('[delete] Error:', err);
       throw new Error('Failed to delete draft order');
     }
   }
 
-  async deleteOrder(orderId: string, userId: string, points: number) {
-    // ここにポイント処理や下書き削除処理を実装
+  async deleteFn(orderId: string, userId: string, point: number) {
+    // ポイント処理と下書き削除処理
+    try {
+      //ここにポイント処理
+      await this.delete(orderId);
+    } catch (err) {
+      console.error('[deleteFn][delete] Error:', err);
+    }
     console.log(
-      `[deleteOrder] orderId: ${orderId}, userId: ${userId}, points: ${points}`,
+      `[deleteFn] orderId: ${orderId}, userId: ${userId}, point: ${point}`,
     );
-    return { message: 'Draft order deleted (stub)' };
+    return { message: '[deleteFn] Draft order deleted and Add point' };
   }
 }

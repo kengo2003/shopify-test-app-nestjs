@@ -1,5 +1,5 @@
 # Stage 1: ビルド用イメージ
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ RUN yarn prisma generate
 RUN yarn build
 
 # Stage 2: 実行用イメージ
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 

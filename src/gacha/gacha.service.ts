@@ -53,7 +53,11 @@ export class GachaService {
         },
       ]);
 
-      return { cardId: selectedCardId };
+      return {
+        cardId: selectedCardId,
+        title,
+        image: product.image?.src || null,
+      };
     } catch (err: any) {
       console.error(
         '[drawGacha] エラー詳細:',

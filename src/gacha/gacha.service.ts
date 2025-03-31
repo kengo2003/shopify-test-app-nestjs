@@ -29,14 +29,26 @@ export class GachaService {
       const randomIndex = Math.floor(Math.random() * pool.length);
       const selectedCardId = pool[randomIndex];
 
+      // 商品詳細を取得してvariant_idを取り出す
+      const numericId = selectedCardId.replace('gid://shopify/Product/', '');
+      const productRes = await axios.get(
+        `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/products/${numericId}.json`,
+        { headers: this.headers },
+      );
+
+      const product = productRes.data.product;
+      const variantId = product.variants[0]?.id;
+      const title = product.title;
+      if (!variantId) throw new Error('variant_id not found');
+
       // 下書き作成
       await this.createDraftOrder(customerId, [
         {
-          title: selectedCardId,
-          price: '0.00',
+          variant_id: variantId,
           quantity: 1,
           properties: {
             カードID: selectedCardId,
+            商品名: title,
           },
         },
       ]);

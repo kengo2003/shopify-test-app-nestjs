@@ -16,7 +16,7 @@ export class GachaService {
   // ガチャで必要な情報｛ガチャID,metaData,custmerId,amount｝
   // カード選択後メタフィールドを更新する処理必要
 
-  async drawGacha(gachaId: string, customerId: string) {
+  async drawGacha(gachaId: string, customerId: number) {
     const lineup = await this.getGachaLineup(gachaId);
     if (!lineup.length) throw new Error('ガチャのラインナップがありません');
 
@@ -46,16 +46,20 @@ export class GachaService {
         {
           variant_id: variantId,
           quantity: 1,
-          properties: {
-            カードID: selectedCardId,
-            商品名: title,
-          },
+          properties: [
+            { name: 'カードID', value: selectedCardId },
+            { name: '商品名', value: title },
+          ],
         },
       ]);
 
       return { cardId: selectedCardId };
-    } catch (err) {
-      console.log('[drawGacha]', err);
+    } catch (err: any) {
+      console.error(
+        '[drawGacha] エラー詳細:',
+        err.response?.data || err.message || err,
+      );
+      throw new Error('ガチャ処理中にエラーが発生しました');
     }
   }
 
@@ -103,20 +107,26 @@ export class GachaService {
   }
 
   // 下書き注文作成関数
-  async createDraftOrder(customerId: string, lineItems: any[]) {
+  async createDraftOrder(customerId: number, lineItems: any[]) {
     const draftOrderData = {
       draft_order: {
         customer: {
-          id: customerId,
+          id: Number(customerId),
         },
         line_items: lineItems,
         use_customer_default_address: true,
       },
     };
 
+    console.log(
+      '[createDraftOrder] payload:',
+      JSON.stringify(draftOrderData, null, 2),
+    );
+
     const response = await axios.post(this.shopifyRestUrl, draftOrderData, {
       headers: this.headers,
     });
+    console.log('[createDraftOrder] response:', response.data);
     return response.data;
   }
 }

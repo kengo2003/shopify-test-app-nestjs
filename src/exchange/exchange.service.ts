@@ -36,25 +36,32 @@ export class ExchangeService {
   // 交換商品一覧を取得
   async getExchangeItems() {
     const query = `
-      {
-        collectionByHandle(handle: "交換所") {
-          products (first: 100) {
-            edges {
-              node {
-                id
-                title
-                featuredImage {
-                  url
-                }
-                metafield(namespace: "custom", key: "required_reward_points") {
-                  value
+  {
+    collectionByHandle(handle: "交換所") {
+      products(first: 100) {
+        edges {
+          node {
+            id
+            title
+            featuredImage {
+              url
+            }
+            variants(first: 1) {
+              edges {
+                node {
+                  id
                 }
               }
+            }
+            metafield(namespace: "custom", key: "required_reward_points") {
+              value
             }
           }
         }
       }
-    `;
+    }
+  }
+`;
 
     const response = await axios.post(
       this.graphqlUrl,
@@ -66,11 +73,18 @@ export class ExchangeService {
 
     return edges.map((edge) => {
       const product = edge.node;
+      const variantGid = product.variants.edges[0]?.node?.id || '';
+      const numericVariantId = variantGid.replace(
+        'gid://shopify/ProductVariant/',
+        '',
+      );
+
       return {
         id: product.id,
         title: product.title,
         image: product.featuredImage?.url || '',
         requiredPoints: Number(product.metafield?.value || 0),
+        variantId: numericVariantId, // ←★これを返す
       };
     });
   }

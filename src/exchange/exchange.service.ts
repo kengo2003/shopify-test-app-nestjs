@@ -7,7 +7,7 @@ dotenv.config();
 @Injectable()
 export class ExchangeService {
   private shopifyUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01`;
-  private graphqlUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/graphql.json`;
+  private graphqlUrl = `${this.shopifyUrl}/graphql.json`;
   private headers = {
     'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
     'Content-Type': 'application/json',
@@ -75,16 +75,101 @@ export class ExchangeService {
     });
   }
 
-  // 商品とポイントの交換処理（仮実装）
+  // 商品とポイントの交換処理
   async exchangeItem(
     customerId: number,
-    itemId: string,
+    productId: string,
     requiredPoints: number,
   ) {
-    // DBでユーザーのポイントを減らす
-    // 注文生成などの処理を行う
-    return {
-      message: `顧客:${customerId}がアイテム（ID: ${itemId}）と交換：-${requiredPoints}pt`,
-    };
+    try {
+      // 商品詳細取得 → バリアントIDを取得
+      const productRes = await axios.get(
+        `${this.shopifyUrl}/products/${productId}.json`,
+        { headers: this.headers },
+      );
+
+      const product = productRes.data.product;
+      const variantId = product.variants[0]?.id;
+      if (!variantId) throw new Error('variant_id not found');
+
+      // Draft Order作成
+      const draftOrderRes = await axios.post(
+        `${this.shopifyUrl}/draft_orders.json`,
+        {
+          draft_order: {
+            customer: {
+              id: customerId,
+            },
+            line_items: [
+              {
+                variant_id: variantId,
+                quantity: 1,
+                properties: [
+                  { name: '交換所経由', value: 'true' },
+                  { name: 'ポイント利用', value: `${requiredPoints}pt` },
+                ],
+              },
+            ],
+            use_customer_default_address: true,
+          },
+        },
+        { headers: this.headers },
+      );
+
+      const draftGid = draftOrderRes.data.draft_order.admin_graphql_api_id;
+
+      // 正式な注文に変換
+      const query = `
+        mutation {
+          draftOrderComplete(id: "${draftGid}") {
+            draftOrder {
+              id
+              name
+              status
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+
+      const completeRes = await axios.post(
+        this.graphqlUrl,
+        { query },
+        { headers: this.headers },
+      );
+
+      if (completeRes.data.errors) {
+        throw new Error(
+          `GraphQLエラー: ${JSON.stringify(completeRes.data.errors)}`,
+        );
+      }
+
+      const result = completeRes.data.data?.draftOrderComplete;
+
+      if (!result) {
+        throw new Error('draftOrderComplete がレスポンスに含まれていません');
+      }
+
+      if (result.userErrors && result.userErrors.length > 0) {
+        throw new Error(
+          `Shopify userErrors: ${JSON.stringify(result.userErrors)}`,
+        );
+      }
+
+      // 正常時のレスポンス処理
+      return {
+        message: `顧客:${customerId} がアイテム:${productId}を${requiredPoints}ptで交換`,
+        draftOrder: result.draftOrder,
+      };
+    } catch (err: any) {
+      console.error(
+        '[exchangeItem error]',
+        err.response?.data || err.message || err,
+      );
+      throw new Error('交換中にエラーが発生しました');
+    }
   }
 }

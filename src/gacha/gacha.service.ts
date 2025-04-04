@@ -53,6 +53,12 @@ export class GachaService {
         },
       ]);
 
+      // Shopifyから報酬ポイントのメタフィールドを取得
+      const rewardPoints = await this.getRewardPointValue();
+
+      // 後にDB更新予定の処理（仮）
+      console.log(`[RewardPoint] ${rewardPoints}pt をユーザーに付与予定`);
+
       return {
         cardId: selectedCardId,
         title,
@@ -65,6 +71,25 @@ export class GachaService {
       );
       throw new Error('ガチャ処理中にエラーが発生しました');
     }
+  }
+
+  // メタフィールドから報酬ポイントを取得
+  async getRewardPointValue(): Promise<number> {
+    const query = `
+    {
+      shop {
+        metafield(namespace: "custom", key: "reward_point_value") {
+          value
+        }
+      }
+    }
+  `;
+    const res = await axios.post(
+      this.shopifyUrl,
+      { query },
+      { headers: this.headers },
+    );
+    return parseInt(res.data.data.shop.metafield.value, 10);
   }
 
   //ガチャのラインナップ取得関数

@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import * as dotenv from 'dotenv';
+import { DraftOrdersService } from '../draft-orders/draft-orders.service';
 
 dotenv.config();
 
 @Injectable()
 export class ExchangeService {
+  constructor(private readonly draftOrdersService: DraftOrdersService) {}
+
   private shopifyUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01`;
   private graphqlUrl = `${this.shopifyUrl}/graphql.json`;
   private headers = {
@@ -164,6 +167,10 @@ export class ExchangeService {
           `Shopify userErrors: ${JSON.stringify(result.userErrors)}`,
         );
       }
+
+      // draft-orders.service.tsのdelete関数を実行
+      const draftOrderId = draftGid.replace('gid://shopify/DraftOrder/', '');
+      await this.draftOrdersService.delete(draftOrderId);
 
       // 正常時のレスポンス処理
       return {

@@ -103,6 +103,7 @@ export class CustomersService {
   // }
 
   async processCustomerCreateWebhook(webhookData: any) {
+    console.log(`webhookData in processCustomerCreateWebhook: ${webhookData}`);
     const customerId = webhookData.data.customer.id;
 
     // 顧客情報をPrismaを使用してデータベースに保存

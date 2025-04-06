@@ -85,7 +85,16 @@ export class GachaService {
       { query },
       { headers: this.headers },
     );
-    return parseInt(res.data.data.shop.metafield.value, 10);
+
+    const metafield = res.data?.data?.shop?.metafield;
+    if (!metafield || !metafield.value) {
+      console.warn(
+        '[RewardPoint] メタフィールドが未設定です。デフォルト0ptを返します',
+      );
+      return 0;
+    }
+
+    return parseInt(metafield.value, 10);
   }
 
   //ガチャのラインナップ取得関数

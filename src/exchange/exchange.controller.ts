@@ -25,13 +25,13 @@ export class ExchangeController {
     @Body()
     body: {
       customerId: number;
-      itemId: string;
+      variantId: number;
       requiredPoints: number;
     },
   ) {
     return this.exchangeService.exchangeItem(
       body.customerId,
-      body.itemId,
+      body.variantId,
       body.requiredPoints,
     );
   }

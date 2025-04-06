@@ -84,7 +84,7 @@ export class ExchangeService {
         title: product.title,
         image: product.featuredImage?.url || '',
         requiredPoints: Number(product.metafield?.value || 0),
-        variantId: numericVariantId, // ←★これを返す
+        variantId: numericVariantId,
       };
     });
   }
@@ -92,18 +92,10 @@ export class ExchangeService {
   // 商品とポイントの交換処理
   async exchangeItem(
     customerId: number,
-    productId: string,
+    variantId: number,
     requiredPoints: number,
   ) {
     try {
-      // 商品詳細取得 → バリアントIDを取得
-      const productRes = await axios.get(
-        `${this.shopifyUrl}/products/${productId}.json`,
-        { headers: this.headers },
-      );
-
-      const product = productRes.data.product;
-      const variantId = product.variants[0]?.id;
       if (!variantId) throw new Error('variant_id not found');
 
       // Draft Order作成
@@ -175,7 +167,7 @@ export class ExchangeService {
 
       // 正常時のレスポンス処理
       return {
-        message: `顧客:${customerId} がアイテム:${productId}を${requiredPoints}ptで交換`,
+        message: `顧客:${customerId} がアイテム:${variantId}を${requiredPoints}ptで交換`,
         draftOrder: result.draftOrder,
       };
     } catch (err: any) {

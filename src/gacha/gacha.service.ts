@@ -13,23 +13,20 @@ export class GachaService {
     'Content-Type': 'application/json',
   };
 
-  // ガチャで必要な情報｛ガチャID,metaData,custmerId,amount｝
   // カード選択後メタフィールドを更新する処理必要
 
-  async drawGacha(gachaId: string, customerId: number) {
+  async drawGacha(gachaId: string, customerId: number, amount: number) {
     const lineup = await this.getGachaLineup(gachaId);
     if (!lineup.length) throw new Error('ガチャのラインナップがありません');
 
-    try {
-      // 全てのカードを配列に展開
+    const results = [];
+
+    for (let i = 0; i < amount; i++) {
       const pool = lineup.flatMap((item) =>
         Array(item.quantity).fill(item.cardId),
       );
-      // ランダムに1枚選ぶ
-      const randomIndex = Math.floor(Math.random() * pool.length);
-      const selectedCardId = pool[randomIndex];
+      const selectedCardId = pool[Math.floor(Math.random() * pool.length)];
 
-      // 商品詳細を取得してvariant_idを取り出す
       const numericId = selectedCardId.replace('gid://shopify/Product/', '');
       const productRes = await axios.get(
         `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/products/${numericId}.json`,
@@ -41,7 +38,7 @@ export class GachaService {
       const title = product.title;
       if (!variantId) throw new Error('variant_id not found');
 
-      // 下書き作成
+      // Draft Order作成
       await this.createDraftOrder(customerId, [
         {
           variant_id: variantId,
@@ -53,24 +50,23 @@ export class GachaService {
         },
       ]);
 
-      // Shopifyから報酬ポイントのメタフィールドを取得
       const rewardPoints = await this.getRewardPointValue();
-
-      // 後にDB更新予定の処理（仮）
       console.log(`[RewardPoint] ${rewardPoints}pt をユーザーに付与予定`);
 
-      return {
+      results.push({
         cardId: selectedCardId,
         title,
         image: product.image?.src || null,
-      };
-    } catch (err: any) {
-      console.error(
-        '[drawGacha] エラー詳細:',
-        err.response?.data || err.message || err,
-      );
-      throw new Error('ガチャ処理中にエラーが発生しました');
+      });
     }
+    return { results };
+  }
+  catch(err: any) {
+    console.error(
+      '[drawGacha] エラー詳細:',
+      err.response?.data || err.message || err,
+    );
+    throw new Error('ガチャ処理中にエラーが発生しました');
   }
 
   // メタフィールドから報酬ポイントを取得

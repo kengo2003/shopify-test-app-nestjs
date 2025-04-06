@@ -9,8 +9,9 @@ export class GachaController {
   async drawGacha(
     @Param('id') gachaId: string,
     @Body('customerId') customerId: number,
+    @Body('amount') amount: number,
   ) {
-    return this.gachaService.drawGacha(gachaId, customerId);
+    return this.gachaService.drawGacha(gachaId, customerId, amount);
   }
 
   @Post('create')

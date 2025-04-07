@@ -5,9 +5,18 @@ import { ShopifyModule } from './shpify/shopify.module';
 import { GachaModule } from './gacha/gacha.module';
 import { DraftOrdersModule } from './draft-orders/draft-orders.module';
 import { ExchangeModule } from './exchange/exchange.module';
+import { GachaPointsModule } from './points/gacha-points/gacha-points.module';
+import { RewardPointsModule } from './points/reward-points/reward-points.module';
 
 @Module({
-  imports: [ShopifyModule, GachaModule, DraftOrdersModule, ExchangeModule],
+  imports: [
+    ShopifyModule,
+    GachaModule,
+    DraftOrdersModule,
+    ExchangeModule,
+    GachaPointsModule,
+    RewardPointsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

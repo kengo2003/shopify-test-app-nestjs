@@ -11,7 +11,7 @@ export class TransactionService {
     // 現在の残高を取得
     const currentBalance = await this.getBalance(dto.customerId);
 
-    return this.prisma.transaction.create({
+    return this.prisma.gachaPointTransaction.create({
       data: {
         customerId: dto.customerId,
         amount: dto.amount,
@@ -27,7 +27,7 @@ export class TransactionService {
     // 現在の残高を取得
     const currentBalance = await this.getBalance(customerId);
 
-    return this.prisma.transaction.create({
+    return this.prisma.gachaPointTransaction.create({
       data: {
         customerId,
         amount: -amount,
@@ -41,13 +41,13 @@ export class TransactionService {
   async getBalance(customerId: string) {
     const result = await this.prisma.customer.findUnique({
       where: { id: customerId },
-      select: { pointsBalance: true },
+      select: { gachaPoints: true },
     });
-    return result?.pointsBalance ?? 0;
+    return result?.gachaPoints ?? 0;
   }
 
   async listTransactions(customerId: string) {
-    return this.prisma.transaction.findMany({
+    return this.prisma.gachaPointTransaction.findMany({
       where: { customerId },
       orderBy: { createdAt: 'desc' },
     });

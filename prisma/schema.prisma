@@ -68,6 +68,7 @@ model GachaResult {
   customerId String
   gachaId String
   cardId String // カードのproductId
+  draftOrderId String? // 下書き注文ID
   createdAt DateTime @default(now())
   status GachaResultStatus @default(PENDING)
   

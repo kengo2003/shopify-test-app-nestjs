@@ -105,13 +105,16 @@ export class CustomersService {
   async processCustomerCreateWebhook(webhookData: any) {
     console.log(`webhookData in processCustomerCreateWebhook: ${webhookData}`);
     const customerId = webhookData.data.customer.id;
+    const rewardPoints = webhookData.data.customer.rewardPoints ?? 0;
+    const gachaPoints = webhookData.data.customer.gachaPoints ?? 0;
 
     // 顧客情報をPrismaを使用してデータベースに保存
     try {
       await this.prisma.customer.create({
         data: {
           id: customerId,
-          pointsBalance: 0,
+          gachaPoints: gachaPoints,
+          rewardPoints: rewardPoints,
           createdAt: new Date(),
           updatedAt: new Date(),
         },

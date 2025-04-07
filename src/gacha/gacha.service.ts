@@ -24,12 +24,10 @@ export class GachaService {
     const results = [];
 
     for (let i = 0; i < amount; i++) {
-      // 在庫に応じた重み付き配列作成
       const pool = lineup.flatMap((item) => Array(item.inventory).fill(item));
-
       const selected = pool[Math.floor(Math.random() * pool.length)];
 
-      // 注文作成
+      // 下書き注文作成
       await this.createDraftOrder(customerId, [
         {
           variant_id: selected.variantId.replace(
@@ -44,6 +42,10 @@ export class GachaService {
         },
       ]);
 
+      // 報酬ポイントの取得とDB連携
+      const rewardPoints = await this.getRewardPointValue();
+      console.log(`[RewardPoint] ${rewardPoints}pt をユーザーに付与予定`);
+
       results.push({
         cardId: selected.productId,
         title: selected.title,
@@ -52,7 +54,6 @@ export class GachaService {
     }
     return { results };
   }
-
   catch(err: any) {
     console.error(
       '[drawGacha] エラー詳細:',
@@ -61,6 +62,7 @@ export class GachaService {
     throw new Error('ガチャ処理中にエラーが発生しました');
   }
 
+  // ガチャラインナップの取得
   async getGachaLineupFromCollection(handle: string) {
     const query = `
     {
@@ -93,19 +95,19 @@ export class GachaService {
       { query },
       { headers: this.headers },
     );
-    const products = res.data.data.collectionByHandle?.products?.edges || [];
 
-    return products
+    const edges = res.data?.data?.collectionByHandle?.products?.edges || [];
+
+    return edges
       .map((edge) => {
         const product = edge.node;
         const variant = product.variants.edges[0]?.node;
-
         if (!variant || variant.inventoryQuantity <= 0) return null;
 
         return {
           productId: product.id,
           title: product.title,
-          variantId: variant.id,
+          variantId: variant.id.replace('gid://shopify/ProductVariant/', ''),
           inventory: variant.inventoryQuantity,
           image: product.featuredImage?.url || '',
         };

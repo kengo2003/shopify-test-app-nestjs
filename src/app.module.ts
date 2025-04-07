@@ -7,6 +7,7 @@ import { DraftOrdersModule } from './draft-orders/draft-orders.module';
 import { ExchangeModule } from './exchange/exchange.module';
 import { GachaPointsModule } from './points/gacha-points/gacha-points.module';
 import { RewardPointsModule } from './points/reward-points/reward-points.module';
+import { CustomersModule } from './customers/customers.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { RewardPointsModule } from './points/reward-points/reward-points.module'
     ExchangeModule,
     GachaPointsModule,
     RewardPointsModule,
+    CustomersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

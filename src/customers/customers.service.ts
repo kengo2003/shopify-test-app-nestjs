@@ -103,7 +103,11 @@ export class CustomersService {
   // }
 
   async processCustomerCreateWebhook(webhookData: any) {
-    console.log(`webhookData in processCustomerCreateWebhook: ${webhookData}`);
+    console.log(
+      `webhookData in processCustomerCreateWebhook: ${JSON.stringify(
+        webhookData,
+      )}`,
+    );
     const customerId = webhookData.data.customer.id;
     const rewardPoints = webhookData.data.customer.rewardPoints ?? 0;
     const gachaPoints = webhookData.data.customer.gachaPoints ?? 0;

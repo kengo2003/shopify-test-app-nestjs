@@ -13,60 +13,104 @@ export class GachaService {
     'Content-Type': 'application/json',
   };
 
-  // カード選択後メタフィールドを更新する処理必要
-
-  async drawGacha(gachaId: string, customerId: number, amount: number) {
-    const lineup = await this.getGachaLineup(gachaId);
+  async drawGacha(
+    collectionHandle: string,
+    customerId: number,
+    amount: number,
+  ) {
+    const lineup = await this.getGachaLineupFromCollection(collectionHandle);
     if (!lineup.length) throw new Error('ガチャのラインナップがありません');
 
     const results = [];
 
     for (let i = 0; i < amount; i++) {
-      const pool = lineup.flatMap((item) =>
-        Array(item.quantity).fill(item.cardId),
-      );
-      const selectedCardId = pool[Math.floor(Math.random() * pool.length)];
+      // 在庫に応じた重み付き配列作成
+      const pool = lineup.flatMap((item) => Array(item.inventory).fill(item));
 
-      const numericId = selectedCardId.replace('gid://shopify/Product/', '');
-      const productRes = await axios.get(
-        `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/products/${numericId}.json`,
-        { headers: this.headers },
-      );
+      const selected = pool[Math.floor(Math.random() * pool.length)];
 
-      const product = productRes.data.product;
-      const variantId = product.variants[0]?.id;
-      const title = product.title;
-      if (!variantId) throw new Error('variant_id not found');
-
-      // Draft Order作成
+      // 注文作成
       await this.createDraftOrder(customerId, [
         {
-          variant_id: variantId,
+          variant_id: selected.variantId.replace(
+            'gid://shopify/ProductVariant/',
+            '',
+          ),
           quantity: 1,
           properties: [
-            { name: 'カードID', value: selectedCardId },
-            { name: '商品名', value: title },
+            { name: 'カードID', value: selected.productId },
+            { name: '商品名', value: selected.title },
           ],
         },
       ]);
 
-      const rewardPoints = await this.getRewardPointValue();
-      console.log(`[RewardPoint] ${rewardPoints}pt をユーザーに付与予定`);
-
       results.push({
-        cardId: selectedCardId,
-        title,
-        image: product.image?.src || null,
+        cardId: selected.productId,
+        title: selected.title,
+        image: selected.image,
       });
     }
     return { results };
   }
+
   catch(err: any) {
     console.error(
       '[drawGacha] エラー詳細:',
       err.response?.data || err.message || err,
     );
     throw new Error('ガチャ処理中にエラーが発生しました');
+  }
+
+  async getGachaLineupFromCollection(handle: string) {
+    const query = `
+    {
+      collectionByHandle(handle: "${handle}") {
+        products(first: 150) {
+          edges {
+            node {
+              id
+              title
+              variants(first: 1) {
+                edges {
+                  node {
+                    id
+                    inventoryQuantity
+                  }
+                }
+              }
+              featuredImage {
+                url
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+    const res = await axios.post(
+      this.shopifyUrl,
+      { query },
+      { headers: this.headers },
+    );
+    const products = res.data.data.collectionByHandle?.products?.edges || [];
+
+    return products
+      .map((edge) => {
+        const product = edge.node;
+        const variant = product.variants.edges[0]?.node;
+
+        if (!variant || variant.inventoryQuantity <= 0) return null;
+
+        return {
+          productId: product.id,
+          title: product.title,
+          variantId: variant.id,
+          inventory: variant.inventoryQuantity,
+          image: product.featuredImage?.url || '',
+        };
+      })
+      .filter((item) => item !== null);
   }
 
   // メタフィールドから報酬ポイントを取得

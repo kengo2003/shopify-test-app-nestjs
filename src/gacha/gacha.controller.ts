@@ -7,11 +7,11 @@ export class GachaController {
 
   @Post(':id/draw')
   async drawGacha(
-    @Param('id') gachaId: string,
+    @Param('id') gachaHandle: string,
     @Body('customerId') customerId: number,
     @Body('amount') amount: number,
   ) {
-    return this.gachaService.drawGacha(gachaId, customerId, amount);
+    return this.gachaService.drawGacha(gachaHandle, customerId, amount);
   }
 
   @Post('create')

@@ -26,7 +26,9 @@ export class DraftOrdersService {
       });
 
       const draftOrders = response.data.draft_orders.filter(
-        (order) => String(order.customer?.id) === String(customerId),
+        (order) =>
+          String(order.customer?.id) === String(customerId) &&
+          order.status === 'open',
       );
       const productIds = draftOrders
         .flatMap((order) => order.line_items.map((item) => item.product_id))

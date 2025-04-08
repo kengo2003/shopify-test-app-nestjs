@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 import { RewardPointsService } from '../points/reward-points/reward-points.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GachaResultStatus } from '@prisma/client';
+import { GachaPointsService } from '../points/gacha-points/gacha-points.service';
 dotenv.config();
 
 @Injectable()
@@ -11,6 +12,7 @@ export class GachaService {
   constructor(
     private readonly rewardPointsService: RewardPointsService,
     private readonly prisma: PrismaService,
+    private readonly gachaPointService: GachaPointsService,
   ) {}
 
   private shopifyUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/graphql.json`;
@@ -34,7 +36,9 @@ export class GachaService {
       }
 
       // 全カードを在庫に応じてpoolに展開
-      const pool = lineup.flatMap((item) => Array(item.inventory).fill(item));
+      const pool = lineup.cards.flatMap((item) =>
+        Array(item.inventory).fill(item),
+      );
       // 抽選回数分の在庫があるか確認
       if (pool.length < amount) {
         console.error('在庫不足です。!pool.length < amount');
@@ -49,7 +53,7 @@ export class GachaService {
       const customer = await this.prisma.customer.findUnique({
         where: { id: customerId.toString() },
       });
-      if (customer.gachaPoints < amount * 100) {
+      if (customer.gachaPoints < amount * lineup.cost) {
         console.error(
           '[drawGacha] ポイント不足です。',
           customer.gachaPoints,
@@ -57,7 +61,7 @@ export class GachaService {
         );
         return {
           results: [],
-          error: 'ポイント不足です。',
+          error: `ポイント不足です。${amount * lineup.cost - customer.gachaPoints}pt不足です。`,
         };
       }
 
@@ -113,6 +117,14 @@ export class GachaService {
             ),
             rewardPointTransactionId: rewardPointTransaction.id,
           },
+        });
+
+        //gachaPointTransactionを発行し、customerのgachaPointsを減らす
+        await this.gachaPointService.usePoints({
+          customerId: customerId.toString(),
+          amount: lineup.cost,
+          description: `ガチャ実行報酬: ${selected.title}`,
+          gachaResultId: selected.productId,
         });
 
         results.push({
@@ -194,16 +206,18 @@ export class GachaService {
       console.log('Edges:', JSON.stringify(edges));
       console.log('Metafields:', JSON.stringify(metafields));
 
+      const cost = metafields.find(
+        (edge) =>
+          edge.node.key === 'point_cost' && edge.node.namespace === 'custom',
+      )?.node?.value;
+      console.log('Found cost:', cost);
+
       // 商品データの変換処理
       const transformedProducts = edges.map((edge) => {
         const product = edge.node;
         const variant = product.variants.edges[0]?.node;
         const locationId =
           variant?.inventoryItem?.inventoryLevels?.edges[0]?.node?.location?.id;
-        const cost = metafields.find(
-          (edge) =>
-            edge.node.key === 'point_cost' && edge.node.namespace === 'custom',
-        )?.node?.value;
 
         // バリデーションチェック
         const isValidVariant = variant && variant.inventoryQuantity > 0;
@@ -215,8 +229,6 @@ export class GachaService {
           return null;
         }
 
-        console.log('Found cost:', cost);
-
         // 最終的な返り値の構築
         return {
           productId: product.id,
@@ -226,12 +238,14 @@ export class GachaService {
           locationId,
           inventory: variant.inventoryQuantity,
           image: product.featuredImage?.url || '',
-          cost: cost ? parseInt(cost, 10) : null,
         };
       });
 
       console.log('getGachaLineupFromCollection終了');
-      return transformedProducts.filter((item) => item !== null);
+      return {
+        cost: cost ? parseInt(cost, 10) : null,
+        cards: transformedProducts.filter((item) => item !== null),
+      };
     } catch (error) {
       console.error('getGachaLineupFromCollectionエラー:', error);
       throw error;

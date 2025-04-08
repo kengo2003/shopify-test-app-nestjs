@@ -66,12 +66,15 @@ export class GachaPointsService {
   }
 
   async getBalance(customerId: string) {
-    const transactions = await this.prisma.gachaPointTransaction.findMany({
-      where: { customerId: customerId },
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: {
+        gachaPoints: true,
+      },
     });
 
     // 全トランザクションの合計を計算
-    return transactions.reduce((sum, tx) => sum + tx.amount, 0);
+    return customer.gachaPoints;
   }
 
   async listTransactions(customerId: string) {

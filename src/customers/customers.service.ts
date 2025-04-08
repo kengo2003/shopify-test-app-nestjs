@@ -201,4 +201,62 @@ export class CustomersService {
 
     return result;
   }
+
+  async getInviteCode(id: string) {
+    const inviteCode = await this.prisma.inviteCode.findFirst({
+      where: {
+        customerId: id,
+        isActive: true,
+      },
+    });
+    return inviteCode;
+  }
+
+  async useInviteCode(id: string, body: any) {
+    const { inviteCode: codeToUse } = body;
+    const amount = 100;
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      include: {
+        inviteCodes: true,
+      },
+    });
+    if (!customer) {
+      throw new Error('Customer not found');
+    }
+    const foundInviteCode = customer.inviteCodes.find(
+      (code) => code.code === codeToUse,
+    );
+    if (!foundInviteCode) {
+      throw new Error('Invite code not found');
+    }
+    if (foundInviteCode.maxUses <= foundInviteCode.currentUses) {
+      throw new Error('Invite code has reached its maximum usage');
+    }
+    if (foundInviteCode.expiresAt < new Date()) {
+      throw new Error('Invite code has expired');
+    }
+    await this.prisma.inviteCode.update({
+      where: { id: foundInviteCode.id },
+      data: {
+        currentUses: foundInviteCode.currentUses + 1,
+      },
+    });
+    await this.prisma.customer.update({
+      where: { id },
+      data: {
+        rewardPoints: customer.rewardPoints + amount,
+      },
+    });
+    await this.prisma.gachaPointTransaction.create({
+      data: {
+        customerId: id,
+        amount: amount,
+        description: '招待コード利用',
+        orderId: '',
+        balanceAtTransaction: customer.rewardPoints + amount,
+      },
+    });
+    return { success: true };
+  }
 }

@@ -21,4 +21,14 @@ export class CustomersController {
   async updateCustomer(@Param('id') id: string, @Body() updateData: any) {
     return this.customersService.updateCustomer(id, updateData);
   }
+
+  @Get(':id/invite-code')
+  async getInviteCode(@Param('id') id: string) {
+    return this.customersService.getInviteCode(id);
+  }
+
+  @Post(':id/use-invite-code')
+  async useInviteCode(@Param('id') id: string, @Body() body: any) {
+    return this.customersService.useInviteCode(id, body);
+  }
 }

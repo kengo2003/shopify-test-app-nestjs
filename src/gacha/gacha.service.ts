@@ -300,7 +300,7 @@ export class GachaService {
     const query = `
     {
       shop {
-        metafield(namespace: "custom", key: "reward_point_value") {
+        metafield(namespace: "custom", key: "required_reward_points") {
           value
         }
       }

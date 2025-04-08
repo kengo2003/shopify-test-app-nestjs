@@ -292,7 +292,7 @@ export class GachaService {
       throw new Error('在庫の更新に失敗しました');
     }
 
-    console.log('[adjustInventory] 成功:', data);
+    console.log('[adjustInventory] 成功:', JSON.stringify(data));
   }
 
   // メタフィールドから報酬ポイントを取得

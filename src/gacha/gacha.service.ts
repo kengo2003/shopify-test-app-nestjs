@@ -143,35 +143,38 @@ export class GachaService {
 
   // ガチャラインナップの取得
   async getGachaLineupFromCollection(handle: string) {
-    const query = `
-    {
-      collectionByHandle(handle: "${handle}") {
-        metafields(first: 10) {
-          edges {
-            node {
-              namespace
-              key
-              value
+    try {
+      console.log('getGachaLineupFromCollection開始:', handle);
+      const query = `
+      {
+        collectionByHandle(handle: "${handle}") {
+          metafields(first: 10) {
+            edges {
+              node {
+                namespace
+                key
+                value
+              }
             }
           }
-        }
-        products(first: 150) {
-          edges {
-            node {
-              id
-              title
-              variants(first: 1) {
-                edges {
-                  node {
-                    id
-                    inventoryQuantity
-                    inventoryItem {
+          products(first: 150) {
+            edges {
+              node {
+                id
+                title
+                variants(first: 1) {
+                  edges {
+                    node {
                       id
-                      inventoryLevels(first: 1) {
-                        edges {
-                          node {
-                            location {
-                              id
+                      inventoryQuantity
+                      inventoryItem {
+                        id
+                        inventoryLevels(first: 1) {
+                          edges {
+                            node {
+                              location {
+                                id
+                              }
                             }
                           }
                         }
@@ -179,67 +182,70 @@ export class GachaService {
                     }
                   }
                 }
-              }
-              featuredImage {
-                url
+                featuredImage {
+                  url
+                }
               }
             }
           }
         }
       }
+    `;
+
+      const res = await axios.post(
+        this.shopifyUrl,
+        { query },
+        { headers: this.headers },
+      );
+
+      const edges = res.data?.data?.collectionByHandle?.products?.edges || [];
+      const metafields =
+        res.data?.data?.collectionByHandle?.metafields?.edges || [];
+
+      console.log('Edges:', JSON.stringify(edges));
+      console.log('Metafields:', JSON.stringify(metafields));
+
+      // 商品データの変換処理
+      const transformedProducts = edges.map((edge) => {
+        const product = edge.node;
+        const variant = product.variants.edges[0]?.node;
+        const locationId =
+          variant?.inventoryItem?.inventoryLevels?.edges[0]?.node?.location?.id;
+        const cost = metafields.find(
+          (edge) =>
+            edge.node.key === 'point_cost' && edge.node.namespace === 'custom',
+        )?.node?.value;
+
+        // バリデーションチェック
+        const isValidVariant = variant && variant.inventoryQuantity > 0;
+        const hasLocationId = !!locationId;
+
+        // 条件を満たさない場合はnullを返す
+        if (!isValidVariant || !hasLocationId) {
+          return null;
+        }
+
+        console.log('Found cost:', cost);
+
+        // 最終的な返り値の構築
+        return {
+          productId: product.id,
+          title: product.title,
+          variantId: variant.id.replace('gid://shopify/ProductVariant/', ''),
+          inventoryItemId: variant.inventoryItem.id,
+          locationId,
+          inventory: variant.inventoryQuantity,
+          image: product.featuredImage?.url || '',
+          cost: cost ? parseInt(cost, 10) : null,
+        };
+      });
+
+      console.log('getGachaLineupFromCollection終了');
+      return transformedProducts.filter((item) => item !== null);
+    } catch (error) {
+      console.error('getGachaLineupFromCollectionエラー:', error);
+      throw error;
     }
-  `;
-
-    const res = await axios.post(
-      this.shopifyUrl,
-      { query },
-      { headers: this.headers },
-    );
-
-    const edges = res.data?.data?.collectionByHandle?.products?.edges || [];
-    const metafields =
-      res.data?.data?.collectionByHandle?.metafields?.edges || [];
-
-    console.log('Edges:', JSON.stringify(edges));
-    console.log('Metafields:', JSON.stringify(metafields));
-
-    // 商品データの変換処理
-    const transformedProducts = edges.map((edge) => {
-      const product = edge.node;
-      const variant = product.variants.edges[0]?.node;
-      const locationId =
-        variant?.inventoryItem?.inventoryLevels?.edges[0]?.node?.location?.id;
-      const cost = metafields.find(
-        (edge) =>
-          edge.node.key === 'point_cost' && edge.node.namespace === 'custom',
-      )?.node?.value;
-
-      // バリデーションチェック
-      const isValidVariant = variant && variant.inventoryQuantity > 0;
-      const hasLocationId = !!locationId;
-
-      // 条件を満たさない場合はnullを返す
-      if (!isValidVariant || !hasLocationId) {
-        return null;
-      }
-
-      console.log('Found cost:', cost);
-
-      // 最終的な返り値の構築
-      return {
-        productId: product.id,
-        title: product.title,
-        variantId: variant.id.replace('gid://shopify/ProductVariant/', ''),
-        inventoryItemId: variant.inventoryItem.id,
-        locationId,
-        inventory: variant.inventoryQuantity,
-        image: product.featuredImage?.url || '',
-        cost: cost ? parseInt(cost, 10) : null,
-      };
-    });
-
-    // nullを除外して返す
-    return transformedProducts.filter((item) => item !== null);
   }
 
   async adjustInventory(

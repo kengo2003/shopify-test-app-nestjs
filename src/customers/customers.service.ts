@@ -108,9 +108,9 @@ export class CustomersService {
         webhookData,
       )}`,
     );
-    const customerId = webhookData.data.customer.id;
-    const rewardPoints = webhookData.data.customer.rewardPoints ?? 0;
-    const gachaPoints = webhookData.data.customer.gachaPoints ?? 0;
+    const customerId = webhookData.id;
+    const rewardPoints = 0;
+    const gachaPoints = 0;
 
     // 顧客情報をPrismaを使用してデータベースに保存
     try {
@@ -121,6 +121,7 @@ export class CustomersService {
           rewardPoints: rewardPoints,
           createdAt: new Date(),
           updatedAt: new Date(),
+          isDeleted: false,
         },
       });
     } catch (error: any) {
@@ -129,6 +130,7 @@ export class CustomersService {
         // Prismaの一意制約違反エラーコード
         console.log(`顧客ID ${customerId} は既に存在します`);
       } else {
+        console.log(`error in processCustomerCreateWebhook: ${error}`);
         throw error;
       }
     }

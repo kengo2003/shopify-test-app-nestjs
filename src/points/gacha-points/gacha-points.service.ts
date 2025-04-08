@@ -87,6 +87,8 @@ export class GachaPointsService {
       return { success: true, message: 'No points to add' };
     }
 
+    console.log('Adding points to customer ' + customerId);
+
     try {
       await this.addPoints({
         customerId,
@@ -95,6 +97,14 @@ export class GachaPointsService {
         orderId: webhookData.id?.toString(),
       });
 
+      console.log(
+        'Added ' +
+          pointsEarned +
+          ' points to customer ' +
+          customerId +
+          ' from order ' +
+          webhookData.id?.toString(),
+      );
       return {
         success: true,
         message: `${pointsEarned}ポイントを追加しました`,

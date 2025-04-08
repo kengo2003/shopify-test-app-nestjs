@@ -141,6 +141,8 @@ export class GachaService {
     const query = `
       {
         product(id: "gid://shopify/Product/${gachaId}") {
+          id
+          title
           metafields(first: 5) {
             edges {
               node {
@@ -160,23 +162,31 @@ export class GachaService {
         { query },
         { headers: this.headers },
       );
-      // コスト情報
-      // console.log('response:', response.data.extensions);
-      const resultValue =
-        response.data.data.product.metafields.edges[0].node.value;
-      console.log('Result Value:', resultValue);
-      console.log(`Type:, ${typeof resultValue}`);
-      return JSON.parse(resultValue);
-    } catch (err) {
-      console.log('ERR [getGachaLineup]', err);
-    }
 
-    // console.log(
-    //   `response: ${response.data.data.product.metafields.edges[0].node.value}`,
-    // );
-    // return JSON.parse(
-    //   response.data.data.product.metafields.edges[0].node.value,
-    // );
+      const product = response.data.data.product;
+      if (!product) {
+        throw new Error(`商品が見つかりません。gachaId: ${gachaId}`);
+      }
+
+      if (!product.metafields?.edges?.length) {
+        throw new Error(
+          `商品のmetafieldsが設定されていません。商品名: ${product.title}`,
+        );
+      }
+
+      const resultValue = product.metafields.edges[0].node.value;
+      console.log('Result Value:', resultValue);
+      console.log(`Type: ${typeof resultValue}`);
+
+      return JSON.parse(resultValue);
+    } catch (err: any) {
+      console.error('ERR [getGachaLineup]', {
+        error: err.message,
+        gachaId,
+        response: err.response?.data,
+      });
+      throw new Error('ガチャのラインナップ取得に失敗しました');
+    }
   }
 
   // 下書き注文作成関数

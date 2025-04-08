@@ -19,6 +19,7 @@ model Customer {
   rewardPoints      Int                   @default(0) // 報酬ポイント
   gachaTransactions GachaPointTransaction[]    // ガチャポイントのトランザクション
   rewardTransactions RewardPointTransaction[]  // 報酬ポイントのトランザクション
+  inviteCodes       InviteCode[]          // 招待コード（複数持てるように変更）
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
   isDeleted         Boolean               @default(false)
@@ -88,5 +89,26 @@ model GachaResult {
   
   @@index([customerId])
   @@index([status])
+}
+
+model InviteCode {
+  id                String    @id @default(cuid())
+  code              String    @unique // 招待コード
+  customerId        String    // 招待コードを所有する顧客ID（unique制約を削除）
+  maxUses           Int       @default(10) // 最大使用回数
+  currentUses       Int       @default(0) // 現在の使用回数
+  resetDate         DateTime? // 使用回数がリセットされる日時
+  expiresAt         DateTime? // 招待コードの有効期限
+  isExpired         Boolean   @default(false) // 有効期限切れフラグ
+  isActive          Boolean   @default(true)  // 現在アクティブな招待コードかどうか
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  customer          Customer  @relation(fields: [customerId], references: [id])
+  
+  @@index([code])
+  @@index([customerId])
+  @@index([expiresAt])
+  @@index([isActive])
 }
 

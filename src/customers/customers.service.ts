@@ -1,6 +1,7 @@
-import axios from 'axios';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Customer } from '@prisma/client';
+import axios from 'axios';
 
 @Injectable()
 export class CustomersService {
@@ -114,16 +115,7 @@ export class CustomersService {
 
     // 顧客情報をPrismaを使用してデータベースに保存
     try {
-      await this.prisma.customer.create({
-        data: {
-          id: customerId,
-          gachaPoints: gachaPoints,
-          rewardPoints: rewardPoints,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isDeleted: false,
-        },
-      });
+      await this.createCustomer(customerId, gachaPoints, rewardPoints);
     } catch (error: any) {
       // 既に存在する場合のエラーハンドリング
       if (error.code === 'P2002') {
@@ -134,5 +126,79 @@ export class CustomersService {
         throw error;
       }
     }
+  }
+
+  async createCustomer(
+    customerId: string,
+    gachaPoints: number = 0,
+    rewardPoints: number = 0,
+  ): Promise<Customer> {
+    // 招待コードを生成
+    const inviteCode = await this.generateUniqueInviteCode();
+
+    // 顧客を作成
+    const customer = await this.prisma.customer.create({
+      data: {
+        id: customerId,
+        gachaPoints: gachaPoints,
+        rewardPoints: rewardPoints,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isDeleted: false,
+        // 招待コードも同時に作成
+        inviteCodes: {
+          create: {
+            code: inviteCode,
+            maxUses: 10,
+            currentUses: 0,
+            isActive: true,
+            // デフォルトで半年の有効期限を設定
+            expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+          },
+        },
+      },
+      include: {
+        inviteCodes: true,
+      },
+    });
+
+    return customer;
+  }
+
+  // 一意な招待コードを生成するメソッド
+  private async generateUniqueInviteCode(length: number = 8): Promise<string> {
+    // 最大10回試行
+    for (let i = 0; i < 10; i++) {
+      // ランダムな文字列を生成（英数字のみ）
+      const code = this.generateRandomString(length);
+
+      // 既存の招待コードと重複していないか確認
+      const existingCode = await this.prisma.inviteCode.findUnique({
+        where: { code },
+      });
+
+      // 重複していなければそのコードを返す
+      if (!existingCode) {
+        return code;
+      }
+    }
+
+    // 10回試行しても重複が解消されない場合は、長さを増やして再試行
+    return this.generateUniqueInviteCode(length + 1);
+  }
+
+  // ランダムな文字列を生成するメソッド
+  private generateRandomString(length: number): string {
+    // 使用する文字（英数字のみ）
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+
+    // 指定された長さのランダムな文字列を生成
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * chars.length);
+      result += chars[randomIndex];
+    }
+
+    return result;
   }
 }

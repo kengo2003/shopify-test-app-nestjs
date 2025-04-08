@@ -25,122 +25,120 @@ export class GachaService {
     customerId: number,
     amount: number,
   ) {
-    const lineup = await this.getGachaLineupFromCollection(collectionHandle);
-    console.log('Lineup:', JSON.stringify(lineup));
-    if (!lineup.length) {
-      console.error('在庫が不足しています。!lineup.length');
-      return { results: [], error: '在庫が不足しています。' };
-    }
+    try {
+      const lineup = await this.getGachaLineupFromCollection(collectionHandle);
+      console.log('Lineup:', JSON.stringify(lineup));
+      if (!lineup.length) {
+        console.error('在庫が不足しています。!lineup.length');
+        return { results: [], error: '在庫が不足しています。' };
+      }
 
-    // 全カードを在庫に応じてpoolに展開
-    const pool = lineup.flatMap((item) => Array(item.inventory).fill(item));
-    // 抽選回数分の在庫があるか確認
-    if (pool.length < amount) {
-      console.error('在庫不足です。!pool.length < amount');
-      return {
-        results: [],
-        error: `在庫不足です。残り ${pool.length} 回しか引けません。`,
-      };
-    }
-    const results = [];
+      // 全カードを在庫に応じてpoolに展開
+      const pool = lineup.flatMap((item) => Array(item.inventory).fill(item));
+      // 抽選回数分の在庫があるか確認
+      if (pool.length < amount) {
+        console.error('在庫不足です。!pool.length < amount');
+        return {
+          results: [],
+          error: `在庫不足です。残り ${pool.length} 回しか引けません。`,
+        };
+      }
+      const results = [];
 
-    //check if the customer has enough points
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId.toString() },
-    });
-    if (customer.gachaPoints < amount * 100) {
-      console.error(
-        '[drawGacha] ポイント不足です。',
-        customer.gachaPoints,
-        amount,
-      );
-      return {
-        results: [],
-        error: 'ポイント不足です。',
-      };
-    }
-
-    for (let i = 0; i < amount; i++) {
-      // 重複排除のため、選んだ要素は pool から削除
-      const index = Math.floor(Math.random() * pool.length);
-      const selected = pool.splice(index, 1)[0];
-
-      // 注文作成（在庫は正式注文で減る前提、ここでは確認のみ）
-      const draftOrder = await this.createDraftOrder(customerId, [
-        {
-          variant_id: selected.variantId,
-          quantity: 1,
-          properties: [
-            { name: 'カードID', value: selected.productId },
-            { name: '商品名', value: selected.title },
-          ],
-        },
-      ]);
-
-      // 在庫を減らす処理
-      await this.adjustInventory(
-        selected.inventoryItemId,
-        selected.locationId,
-        -1,
-      );
-
-      // 報酬ポイント（後にDBに加算）
-      const rewardPoints = await this.getRewardPointValue();
-
-      // ポイント付与処理
-      await this.rewardPointsService.addPoints({
-        customerId: customerId.toString(),
-        amount: rewardPoints,
-        description: `ガチャ実行報酬: ${selected.title}`,
-        gachaResultId: selected.productId,
+      //check if the customer has enough points
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: customerId.toString() },
       });
+      if (customer.gachaPoints < amount * 100) {
+        console.error(
+          '[drawGacha] ポイント不足です。',
+          customer.gachaPoints,
+          amount,
+        );
+        return {
+          results: [],
+          error: 'ポイント不足です。',
+        };
+      }
 
-      // ガチャ結果を保存
-      await this.prisma.gachaResult.create({
-        data: {
+      for (let i = 0; i < amount; i++) {
+        // 重複排除のため、選んだ要素は pool から削除
+        const index = Math.floor(Math.random() * pool.length);
+        const selected = pool.splice(index, 1)[0];
+
+        // 注文作成（在庫は正式注文で減る前提、ここでは確認のみ）
+        const draftOrder = await this.createDraftOrder(customerId, [
+          {
+            variant_id: selected.variantId,
+            quantity: 1,
+            properties: [
+              { name: 'カードID', value: selected.productId },
+              { name: '商品名', value: selected.title },
+            ],
+          },
+        ]);
+
+        // 在庫を減らす処理
+        await this.adjustInventory(
+          selected.inventoryItemId,
+          selected.locationId,
+          -1,
+        );
+
+        // 報酬ポイント（後にDBに加算）
+        const rewardPoints = await this.getRewardPointValue();
+
+        // ポイント付与処理
+        await this.rewardPointsService.addPoints({
           customerId: customerId.toString(),
-          gachaId: collectionHandle,
+          amount: rewardPoints,
+          description: `ガチャ実行報酬: ${selected.title}`,
+          gachaResultId: selected.productId,
+        });
+
+        // ガチャ結果を保存
+        await this.prisma.gachaResult.create({
+          data: {
+            customerId: customerId.toString(),
+            gachaId: collectionHandle,
+            cardId: selected.productId,
+            draftOrderId: draftOrder.id,
+            createdAt: new Date(),
+            status: GachaResultStatus.PENDING,
+            selectionDeadline: new Date(
+              new Date().getTime() + 2 * 7 * 24 * 60 * 60 * 1000,
+            ),
+          },
+        });
+
+        results.push({
           cardId: selected.productId,
-          draftOrderId: draftOrder.id,
-          createdAt: new Date(),
-          status: GachaResultStatus.PENDING,
-          selectionDeadline: new Date(
-            new Date().getTime() + 2 * 7 * 24 * 60 * 60 * 1000,
-          ),
-        },
+          title: selected.title,
+          image: selected.image,
+        });
+      }
+      //add gacha result
+      results.forEach(async (result) => {
+        await this.prisma.gachaResult.create({
+          data: {
+            customerId: customerId.toString(),
+            gachaId: collectionHandle,
+            cardId: result.cardId,
+            draftOrderId: result.draftOrderId,
+            createdAt: new Date(),
+            status: GachaResultStatus.PENDING,
+            selectionDeadline: new Date(
+              new Date().getTime() + 2 * 7 * 24 * 60 * 60 * 1000,
+            ),
+          },
+        });
       });
 
-      results.push({
-        cardId: selected.productId,
-        title: selected.title,
-        image: selected.image,
-      });
+      return { results };
+    } catch (error) {
+      console.error('ガチャラインナップ取得エラー:', error);
+      return { results: [], error: 'ガチャラインナップの取得に失敗しました。' };
     }
-    //add gacha result
-    results.forEach(async (result) => {
-      await this.prisma.gachaResult.create({
-        data: {
-          customerId: customerId.toString(),
-          gachaId: collectionHandle,
-          cardId: result.cardId,
-          draftOrderId: result.draftOrderId,
-          createdAt: new Date(),
-          status: GachaResultStatus.PENDING,
-          selectionDeadline: new Date(
-            new Date().getTime() + 2 * 7 * 24 * 60 * 60 * 1000,
-          ),
-        },
-      });
-    });
-
-    return { results };
-  }
-  catch(err: any) {
-    console.error(
-      '[drawGacha] エラー詳細:',
-      err.response?.data || err.message || err,
-    );
-    throw new Error('ガチャ処理中にエラーが発生しました');
   }
 
   // ガチャラインナップの取得

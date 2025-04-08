@@ -18,7 +18,7 @@ steps:
     args:
       - run
       - deploy
-      - nestjs-cloud-run
+      - axis-oripa-api
       # 上でプッシュしたイメージを指定
       - '--image'
       - 'gcr.io/$PROJECT_ID/nestjs-cloud-run'
@@ -27,7 +27,7 @@ steps:
       - managed
       # リージョン（必要に応じて変更）
       - '--region'
-      - us-central1
+      - asia-northeast1
       # 非認証アクセスを許可する場合
       - '--allow-unauthenticated'
 

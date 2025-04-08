@@ -21,19 +21,23 @@ export class GachaService {
     const lineup = await this.getGachaLineupFromCollection(collectionHandle);
     if (!lineup.length) throw new Error('ガチャのラインナップがありません');
 
+    // 全カードを在庫に応じてpoolに展開
+    const pool = lineup.flatMap((item) => Array(item.inventory).fill(item));
+    // 抽選回数分の在庫があるか確認
+    if (pool.length < amount) {
+      throw new Error(`在庫不足です。残り ${pool.length} 回しか引けません。`);
+    }
     const results = [];
 
     for (let i = 0; i < amount; i++) {
-      const pool = lineup.flatMap((item) => Array(item.inventory).fill(item));
-      const selected = pool[Math.floor(Math.random() * pool.length)];
+      // 重複排除のため、選んだ要素は pool から削除
+      const index = Math.floor(Math.random() * pool.length);
+      const selected = pool.splice(index, 1)[0];
 
-      // 下書き注文作成
+      // 注文作成（在庫は正式注文で減る前提、ここでは確認のみ）
       await this.createDraftOrder(customerId, [
         {
-          variant_id: selected.variantId.replace(
-            'gid://shopify/ProductVariant/',
-            '',
-          ),
+          variant_id: selected.variantId,
           quantity: 1,
           properties: [
             { name: 'カードID', value: selected.productId },
@@ -42,7 +46,14 @@ export class GachaService {
         },
       ]);
 
-      // 報酬ポイントの取得とDB連携
+      // 在庫を減らす処理
+      await this.adjustInventory(
+        selected.inventoryItemId,
+        selected.locationId,
+        -1,
+      );
+
+      // 報酬ポイント（後にDBに加算）
       const rewardPoints = await this.getRewardPointValue();
       console.log(`[RewardPoint] ${rewardPoints}pt をユーザーに付与予定`);
 
@@ -77,6 +88,18 @@ export class GachaService {
                   node {
                     id
                     inventoryQuantity
+                    inventoryItem {
+                      id
+                      inventoryLevels(first: 1) {
+                        edges {
+                          node {
+                            location {
+                              id
+                            }
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -104,15 +127,79 @@ export class GachaService {
         const variant = product.variants.edges[0]?.node;
         if (!variant || variant.inventoryQuantity <= 0) return null;
 
+        const locationId =
+          variant.inventoryItem.inventoryLevels?.edges[0]?.node?.location?.id;
+
+        if (!locationId) return null;
+
         return {
           productId: product.id,
           title: product.title,
           variantId: variant.id.replace('gid://shopify/ProductVariant/', ''),
+          inventoryItemId: variant.inventoryItem.id,
+          locationId,
           inventory: variant.inventoryQuantity,
           image: product.featuredImage?.url || '',
         };
       })
       .filter((item) => item !== null);
+  }
+
+  async adjustInventory(
+    inventoryItemId: string,
+    locationId: string,
+    delta: number,
+  ) {
+    const mutation = `
+    mutation inventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!) {
+      inventoryAdjustQuantities(input: $input) {
+        inventoryAdjustmentGroup {
+          createdAt
+          reason
+          changes {
+            delta
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+    const variables = {
+      input: {
+        name: 'available',
+        reason: 'correction',
+        changes: [
+          {
+            inventoryItemId,
+            locationId,
+            delta,
+          },
+        ],
+      },
+    };
+
+    const res = await axios.post(
+      this.shopifyUrl,
+      { query: mutation, variables },
+      { headers: this.headers },
+    );
+
+    const data = res.data?.data?.inventoryAdjustQuantities;
+    if (!data) {
+      console.error('[adjustInventory] 無効なレスポンス:', res.data);
+      throw new Error('Shopifyから在庫調整のレスポンスが無効です');
+    }
+
+    if (data.userErrors?.length) {
+      console.error('[Inventory Error]', data.userErrors);
+      throw new Error('在庫の更新に失敗しました');
+    }
+
+    console.log('[adjustInventory] 成功:', data);
   }
 
   // メタフィールドから報酬ポイントを取得
@@ -198,15 +285,15 @@ export class GachaService {
       },
     };
 
-    console.log(
-      '[createDraftOrder] payload:',
-      JSON.stringify(draftOrderData, null, 2),
-    );
+    // console.log(
+    //   '[createDraftOrder] payload:',
+    //   JSON.stringify(draftOrderData, null, 2),
+    // );
 
     const response = await axios.post(this.shopifyRestUrl, draftOrderData, {
       headers: this.headers,
     });
-    console.log('[createDraftOrder] response:', response.data);
+    // console.log('[createDraftOrder] response:', response.data);
     return response.data;
   }
 }

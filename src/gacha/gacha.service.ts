@@ -77,6 +77,7 @@ export class GachaService {
             ],
           },
         ]);
+        console.log('draftOrder:', JSON.stringify(draftOrder));
 
         // 在庫を減らす処理
         await this.adjustInventory(
@@ -89,12 +90,14 @@ export class GachaService {
         const rewardPoints = await this.getRewardPointValue();
 
         // ポイント付与処理
-        await this.rewardPointsService.addPoints({
-          customerId: customerId.toString(),
-          amount: rewardPoints,
-          description: `ガチャ実行報酬: ${selected.title}`,
-          gachaResultId: selected.productId,
-        });
+        const rewardPointTransaction = await this.rewardPointsService.addPoints(
+          {
+            customerId: customerId.toString(),
+            amount: rewardPoints,
+            description: `ガチャ実行報酬: ${selected.title}`,
+            gachaResultId: selected.productId,
+          },
+        );
 
         // ガチャ結果を保存
         await this.prisma.gachaResult.create({
@@ -108,6 +111,7 @@ export class GachaService {
             selectionDeadline: new Date(
               new Date().getTime() + 2 * 7 * 24 * 60 * 60 * 1000,
             ),
+            rewardPointTransactionId: rewardPointTransaction.id,
           },
         });
 
@@ -117,22 +121,6 @@ export class GachaService {
           image: selected.image,
         });
       }
-      //add gacha result
-      results.forEach(async (result) => {
-        await this.prisma.gachaResult.create({
-          data: {
-            customerId: customerId.toString(),
-            gachaId: collectionHandle,
-            cardId: result.cardId,
-            draftOrderId: result.draftOrderId,
-            createdAt: new Date(),
-            status: GachaResultStatus.PENDING,
-            selectionDeadline: new Date(
-              new Date().getTime() + 2 * 7 * 24 * 60 * 60 * 1000,
-            ),
-          },
-        });
-      });
 
       return { maxRarity: 7, results: results };
     } catch (error) {
@@ -223,6 +211,7 @@ export class GachaService {
 
         // 条件を満たさない場合はnullを返す
         if (!isValidVariant || !hasLocationId) {
+          console.log('条件を満たさない場合はnullを返す');
           return null;
         }
 

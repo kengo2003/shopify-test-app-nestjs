@@ -108,7 +108,7 @@ export class CustomersService {
         webhookData,
       )}`,
     );
-    const customerId = webhookData.id;
+    const customerId = String(webhookData.id);
     const rewardPoints = 0;
     const gachaPoints = 0;
 

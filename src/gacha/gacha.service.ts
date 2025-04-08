@@ -20,80 +20,87 @@ export class GachaService {
     'Content-Type': 'application/json',
   };
 
-  // ガチャで必要な情報｛ガチャID,metaData,custmerId,amount｝
-
-  async drawGacha(gachaId: string, customerId: number) {
-    const lineup = await this.getGachaLineup(gachaId);
-    if (!lineup.length) throw new Error('ガチャのラインナップがありません');
-
-    // 1日の制限回数を取得
-    const dailyDrawLimit = await this.getDailyDrawLimit(gachaId);
-
-    // その日の実行回数を取得
-    const todayDrawCount = await this.getTodayDrawCount(
-      customerId.toString(),
-      gachaId,
-    );
-
-    console.log('todayDrawCount', todayDrawCount);
-    console.log('dailyDrawLimit', dailyDrawLimit);
-
-    // 制限回数チェック
-    if (dailyDrawLimit !== null && todayDrawCount >= dailyDrawLimit) {
-      console.log('ERR [drawGacha] 本日のガチャ実行回数上限に達しました');
-      throw new Error('本日のガチャ実行回数上限に達しました');
+  async drawGacha(
+    collectionHandle: string,
+    customerId: number,
+    amount: number,
+  ) {
+    const lineup = await this.getGachaLineupFromCollection(collectionHandle);
+    console.log('Lineup:', JSON.stringify(lineup));
+    if (!lineup.length) {
+      console.error('在庫が不足しています。!lineup.length');
+      return { results: [], error: '在庫が不足しています。' };
     }
 
-    try {
-      // 全てのカードを配列に展開
-      const pool = lineup.flatMap((item) =>
-        Array(item.quantity).fill(item.cardId),
+    // 全カードを在庫に応じてpoolに展開
+    const pool = lineup.flatMap((item) => Array(item.inventory).fill(item));
+    // 抽選回数分の在庫があるか確認
+    if (pool.length < amount) {
+      console.error('在庫不足です。!pool.length < amount');
+      return {
+        results: [],
+        error: `在庫不足です。残り ${pool.length} 回しか引けません。`,
+      };
+    }
+    const results = [];
+
+    //check if the customer has enough points
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId.toString() },
+    });
+    if (customer.gachaPoints < amount * 100) {
+      console.error(
+        '[drawGacha] ポイント不足です。',
+        customer.gachaPoints,
+        amount,
       );
-      // ランダムに1枚選ぶ
-      const randomIndex = Math.floor(Math.random() * pool.length);
-      const selectedCardId = pool[randomIndex];
+      return {
+        results: [],
+        error: 'ポイント不足です。',
+      };
+    }
 
-      // 商品詳細を取得してvariant_idを取り出す
-      const numericId = selectedCardId.replace('gid://shopify/Product/', '');
-      const productRes = await axios.get(
-        `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/products/${numericId}.json`,
-        { headers: this.headers },
-      );
+    for (let i = 0; i < amount; i++) {
+      // 重複排除のため、選んだ要素は pool から削除
+      const index = Math.floor(Math.random() * pool.length);
+      const selected = pool.splice(index, 1)[0];
 
-      const product = productRes.data.product;
-      const variantId = product.variants[0]?.id;
-      const title = product.title;
-      if (!variantId) throw new Error('variant_id not found');
-
-      // 下書き作成
+      // 注文作成（在庫は正式注文で減る前提、ここでは確認のみ）
       const draftOrder = await this.createDraftOrder(customerId, [
         {
-          variant_id: variantId,
+          variant_id: selected.variantId,
           quantity: 1,
           properties: [
-            { name: 'カードID', value: selectedCardId },
-            { name: '商品名', value: title },
+            { name: 'カードID', value: selected.productId },
+            { name: '商品名', value: selected.title },
           ],
         },
       ]);
 
-      // Shopifyから報酬ポイントのメタフィールドを取得
+      // 在庫を減らす処理
+      await this.adjustInventory(
+        selected.inventoryItemId,
+        selected.locationId,
+        -1,
+      );
+
+      // 報酬ポイント（後にDBに加算）
       const rewardPoints = await this.getRewardPointValue();
 
       // ポイント付与処理
       await this.rewardPointsService.addPoints({
         customerId: customerId.toString(),
         amount: rewardPoints,
-        description: `ガチャ実行報酬: ${title}`,
-        gachaResultId: selectedCardId,
+        description: `ガチャ実行報酬: ${selected.title}`,
+        gachaResultId: selected.productId,
       });
 
       // ガチャ結果を保存
       await this.prisma.gachaResult.create({
         data: {
           customerId: customerId.toString(),
-          gachaId,
-          cardId: selectedCardId,
+          gachaId: collectionHandle,
+          cardId: selected.productId,
           draftOrderId: draftOrder.id,
           createdAt: new Date(),
           status: GachaResultStatus.PENDING,
@@ -103,18 +110,195 @@ export class GachaService {
         },
       });
 
-      return {
-        cardId: selectedCardId,
-        title,
-        image: product.image?.src || null,
-      };
-    } catch (err: any) {
-      console.error(
-        '[drawGacha] エラー詳細:',
-        err.response?.data || err.message || err,
-      );
-      throw new Error('ガチャ処理中にエラーが発生しました');
+      results.push({
+        cardId: selected.productId,
+        title: selected.title,
+        image: selected.image,
+      });
     }
+    //add gacha result
+    results.forEach(async (result) => {
+      await this.prisma.gachaResult.create({
+        data: {
+          customerId: customerId.toString(),
+          gachaId: collectionHandle,
+          cardId: result.cardId,
+          draftOrderId: result.draftOrderId,
+          createdAt: new Date(),
+          status: GachaResultStatus.PENDING,
+          selectionDeadline: new Date(
+            new Date().getTime() + 2 * 7 * 24 * 60 * 60 * 1000,
+          ),
+        },
+      });
+    });
+
+    return { results };
+  }
+  catch(err: any) {
+    console.error(
+      '[drawGacha] エラー詳細:',
+      err.response?.data || err.message || err,
+    );
+    throw new Error('ガチャ処理中にエラーが発生しました');
+  }
+
+  // ガチャラインナップの取得
+  async getGachaLineupFromCollection(handle: string) {
+    const query = `
+    {
+      collectionByHandle(handle: "${handle}") {
+        metafields(first: 10) {
+          edges {
+            node {
+              namespace
+              key
+              value
+            }
+          }
+        }
+        products(first: 150) {
+          edges {
+            node {
+              id
+              title
+              variants(first: 1) {
+                edges {
+                  node {
+                    id
+                    inventoryQuantity
+                    inventoryItem {
+                      id
+                      inventoryLevels(first: 1) {
+                        edges {
+                          node {
+                            location {
+                              id
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              featuredImage {
+                url
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+    const res = await axios.post(
+      this.shopifyUrl,
+      { query },
+      { headers: this.headers },
+    );
+
+    const edges = res.data?.data?.collectionByHandle?.products?.edges || [];
+    const metafields =
+      res.data?.data?.collectionByHandle?.metafields?.edges || [];
+
+    console.log('Edges:', JSON.stringify(edges));
+    console.log('Metafields:', JSON.stringify(metafields));
+
+    // 商品データの変換処理
+    const transformedProducts = edges.map((edge) => {
+      const product = edge.node;
+      const variant = product.variants.edges[0]?.node;
+      const locationId =
+        variant?.inventoryItem?.inventoryLevels?.edges[0]?.node?.location?.id;
+      const cost = metafields.find(
+        (edge) =>
+          edge.node.key === 'point_cost' && edge.node.namespace === 'custom',
+      )?.node?.value;
+
+      // バリデーションチェック
+      const isValidVariant = variant && variant.inventoryQuantity > 0;
+      const hasLocationId = !!locationId;
+
+      // 条件を満たさない場合はnullを返す
+      if (!isValidVariant || !hasLocationId) {
+        return null;
+      }
+
+      console.log('Found cost:', cost);
+
+      // 最終的な返り値の構築
+      return {
+        productId: product.id,
+        title: product.title,
+        variantId: variant.id.replace('gid://shopify/ProductVariant/', ''),
+        inventoryItemId: variant.inventoryItem.id,
+        locationId,
+        inventory: variant.inventoryQuantity,
+        image: product.featuredImage?.url || '',
+        cost: cost ? parseInt(cost, 10) : null,
+      };
+    });
+
+    // nullを除外して返す
+    return transformedProducts.filter((item) => item !== null);
+  }
+
+  async adjustInventory(
+    inventoryItemId: string,
+    locationId: string,
+    delta: number,
+  ) {
+    const mutation = `
+    mutation inventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!) {
+      inventoryAdjustQuantities(input: $input) {
+        inventoryAdjustmentGroup {
+          createdAt
+          reason
+          changes {
+            delta
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+    const variables = {
+      input: {
+        name: 'available',
+        reason: 'correction',
+        changes: [
+          {
+            inventoryItemId,
+            locationId,
+            delta,
+          },
+        ],
+      },
+    };
+
+    const res = await axios.post(
+      this.shopifyUrl,
+      { query: mutation, variables },
+      { headers: this.headers },
+    );
+
+    const data = res.data?.data?.inventoryAdjustQuantities;
+    if (!data) {
+      console.error('[adjustInventory] 無効なレスポンス:', res.data);
+      throw new Error('Shopifyから在庫調整のレスポンスが無効です');
+    }
+
+    if (data.userErrors?.length) {
+      console.error('[Inventory Error]', data.userErrors);
+      throw new Error('在庫の更新に失敗しました');
+    }
+
+    console.log('[adjustInventory] 成功:', data);
   }
 
   // メタフィールドから報酬ポイントを取得
@@ -133,7 +317,16 @@ export class GachaService {
       { query },
       { headers: this.headers },
     );
-    return parseInt(res.data.data.shop.metafield.value, 10);
+
+    const metafield = res.data?.data?.shop?.metafield;
+    if (!metafield || !metafield.value) {
+      console.warn(
+        '[RewardPoint] メタフィールドが未設定です。デフォルト0ptを返します',
+      );
+      return 0;
+    }
+
+    return parseInt(metafield.value, 10);
   }
 
   //ガチャのラインナップ取得関数
@@ -201,15 +394,15 @@ export class GachaService {
       },
     };
 
-    console.log(
-      '[createDraftOrder] payload:',
-      JSON.stringify(draftOrderData, null, 2),
-    );
+    // console.log(
+    //   '[createDraftOrder] payload:',
+    //   JSON.stringify(draftOrderData, null, 2),
+    // );
 
     const response = await axios.post(this.shopifyRestUrl, draftOrderData, {
       headers: this.headers,
     });
-    console.log('[createDraftOrder] response:', response.data);
+    // console.log('[createDraftOrder] response:', response.data);
     return response.data;
   }
 

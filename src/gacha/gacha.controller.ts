@@ -5,12 +5,13 @@ import { GachaService } from './gacha.service';
 export class GachaController {
   constructor(private readonly gachaService: GachaService) {}
 
-  @Post(':id/draw')
+  @Post(':collection/draw')
   async drawGacha(
-    @Param('id') gachaId: string,
+    @Param('collection') collectionHandle: string,
     @Body('customerId') customerId: number,
+    @Body('amount') amount: number,
   ) {
-    return this.gachaService.drawGacha(gachaId, customerId);
+    return this.gachaService.drawGacha(collectionHandle, customerId, amount);
   }
 
   @Post('create')

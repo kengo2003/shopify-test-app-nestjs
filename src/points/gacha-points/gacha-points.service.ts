@@ -1,45 +1,43 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AddGachaPointsDto } from './dto/add-gacha-points.dto';
-import { UseGachaPointsDto } from './dto/use-gacha-points.dto';
 
 @Injectable()
 export class GachaPointsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async addPoints(dto: AddGachaPointsDto) {
+  async addPoints(data: any) {
     // 現在の残高を取得
-    const currentBalance = await this.getBalance(dto.customerId);
+    const currentBalance = await this.getBalance(data.customerId);
 
     return this.prisma.gachaPointTransaction.create({
       data: {
-        customerId: dto.customerId,
-        amount: dto.amount,
-        description: dto.description,
-        orderId: dto.orderId,
-        balanceAtTransaction: currentBalance + dto.amount,
+        customerId: data.customerId,
+        amount: data.amount,
+        description: data.description,
+        orderId: data.orderId,
+        balanceAtTransaction: currentBalance + data.amount,
       },
     });
   }
 
-  async usePoints(dto: UseGachaPointsDto) {
+  async usePoints(data: any) {
     // 現在の残高を取得
-    const currentBalance = await this.getBalance(dto.customerId);
+    const currentBalance = await this.getBalance(data.customerId);
 
     // 残高不足チェック
-    if (currentBalance < dto.amount) {
+    if (currentBalance < data.amount) {
       throw new BadRequestException(
-        `ガチャポイントが不足しています。必要: ${dto.amount}, 残高: ${currentBalance}`,
+        `ガチャポイントが不足しています。必要: ${data.amount}, 残高: ${currentBalance}`,
       );
     }
 
     return this.prisma.gachaPointTransaction.create({
       data: {
-        customerId: dto.customerId,
-        amount: -dto.amount, // マイナス値で記録
-        description: dto.description,
-        orderId: dto.orderId,
-        balanceAtTransaction: currentBalance - dto.amount,
+        customerId: data.customerId,
+        amount: -data.amount, // マイナス値で記録
+        description: data.description,
+        orderId: data.orderId,
+        balanceAtTransaction: currentBalance - data.amount,
       },
     });
   }

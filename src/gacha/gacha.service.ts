@@ -134,7 +134,7 @@ export class GachaService {
         });
       });
 
-      return { results };
+      return { maxRarity: 7, results: results };
     } catch (error) {
       console.error('ガチャラインナップ取得エラー:', error);
       return { results: [], error: 'ガチャラインナップの取得に失敗しました。' };
@@ -202,6 +202,7 @@ export class GachaService {
       const metafields =
         res.data?.data?.collectionByHandle?.metafields?.edges || [];
 
+      console.log(`res: ${JSON.stringify(res.data)}`);
       console.log('Edges:', JSON.stringify(edges));
       console.log('Metafields:', JSON.stringify(metafields));
 

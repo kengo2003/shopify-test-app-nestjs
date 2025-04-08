@@ -57,4 +57,50 @@ export class GachaPointsService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  async handleShopifyWebhook(webhookData: any) {
+    console.log(
+      'Shopify webhook received order created:',
+      JSON.stringify(webhookData, null, 2),
+    );
+
+    // webhookデータから必要な情報を抽出
+    const customerId = webhookData.customer?.id;
+    const lineItems = webhookData.line_items || [];
+
+    // ポイント計算ロジック
+    const pointsEarned = lineItems.reduce((acc, item) => {
+      if (item.sku && item.sku.startsWith('point_')) {
+        return acc + parseInt(item.sku.replace('point_', ''));
+      }
+      return acc;
+    }, 0);
+
+    if (!customerId) {
+      console.error('Customer ID not found in webhook data');
+      return { success: false, message: 'Customer ID not found' };
+    }
+
+    if (pointsEarned <= 0) {
+      console.log('No points to add from this order');
+      return { success: true, message: 'No points to add' };
+    }
+
+    try {
+      await this.addPoints({
+        customerId,
+        amount: pointsEarned,
+        description: 'Shopify注文からのポイント付与',
+        orderId: webhookData.id?.toString(),
+      });
+
+      return {
+        success: true,
+        message: `${pointsEarned}ポイントを追加しました`,
+      };
+    } catch (error) {
+      console.error('Error adding points:', error);
+      return { success: false, message: 'ポイント追加に失敗しました' };
+    }
+  }
 }

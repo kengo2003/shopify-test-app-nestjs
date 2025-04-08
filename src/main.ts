@@ -5,6 +5,7 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -24,8 +25,22 @@ async function bootstrap() {
 
   app.useGlobalPipes(new ValidationPipe());
 
+  // Swaggerの設定
+  const config = new DocumentBuilder()
+    .setTitle('APIドキュメント')
+    .setDescription('APIドキュメント')
+    .setVersion('1.0')
+    .addTag('gacha-points')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
+
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
   console.log(`Application is running on port: ${port}`);
+  console.log(
+    `Swagger documentation is available at: http://localhost:${port}/api`,
+  );
 }
 bootstrap();

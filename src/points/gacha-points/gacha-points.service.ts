@@ -10,21 +10,31 @@ export class GachaPointsService {
     const customerId = String(data.customerId);
     const currentBalance = await this.getBalance(customerId);
 
-    return this.prisma.gachaPointTransaction.create({
-      data: {
-        customerId: customerId,
-        amount: data.amount,
-        description: data.description,
-        orderId: data.orderId,
-        balanceAtTransaction: currentBalance + data.amount,
-      },
+    return this.prisma.$transaction(async (prisma) => {
+      // 1. Customer テーブルの gachaPoints を更新
+      await prisma.customer.update({
+        where: { id: customerId },
+        data: {
+          gachaPoints: { increment: data.amount },
+        },
+      });
+
+      // 2. GachaPointTransaction を作成
+      return prisma.gachaPointTransaction.create({
+        data: {
+          customerId: customerId,
+          amount: data.amount,
+          description: data.description,
+          orderId: data.orderId,
+          balanceAtTransaction: currentBalance + data.amount,
+        },
+      });
     });
   }
 
   async usePoints(data: any) {
     // 現在の残高を取得
-    const customerId = String(data.customerId);
-    const currentBalance = await this.getBalance(customerId);
+    const currentBalance = await this.getBalance(data.customerId);
 
     // 残高不足チェック
     if (currentBalance < data.amount) {
@@ -33,14 +43,25 @@ export class GachaPointsService {
       );
     }
 
-    return this.prisma.gachaPointTransaction.create({
-      data: {
-        customerId: customerId,
-        amount: -data.amount, // マイナス値で記録
-        description: data.description,
-        orderId: data.orderId,
-        balanceAtTransaction: currentBalance - data.amount,
-      },
+    return this.prisma.$transaction(async (prisma) => {
+      // 1. Customer テーブルの gachaPoints を更新
+      await prisma.customer.update({
+        where: { id: data.customerId },
+        data: {
+          gachaPoints: { decrement: data.amount },
+        },
+      });
+
+      // 2. GachaPointTransaction を作成
+      return prisma.gachaPointTransaction.create({
+        data: {
+          customerId: data.customerId,
+          amount: -data.amount,
+          description: data.description,
+          orderId: data.orderId,
+          balanceAtTransaction: currentBalance - data.amount,
+        },
+      });
     });
   }
 

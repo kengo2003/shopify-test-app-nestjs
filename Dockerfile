@@ -5,7 +5,7 @@ WORKDIR /app
 
 # 依存関係のファイルをコピー
 COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+RUN yarn install
 
 # ソースコードとPrismaスキーマをコピー
 COPY prisma ./prisma/

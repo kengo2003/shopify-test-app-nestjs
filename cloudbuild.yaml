@@ -1,11 +1,4 @@
 steps:
-  # データベースマイグレーションを実行
-  - name: 'node:18'
-    entrypoint: yarn
-    args: ['prisma', 'migrate', 'deploy']
-    env:
-      - 'DATABASE_URL=${_DATABASE_URL}'
-
   # 1. Dockerイメージをビルド
   - name: 'gcr.io/cloud-builders/docker'
     args:

@@ -19,7 +19,9 @@ export class GachaService {
     amount: number,
   ) {
     const lineup = await this.getGachaLineupFromCollection(collectionHandle);
-    if (!lineup.length) throw new Error('ガチャのラインナップがありません');
+    if (!lineup.length) {
+      return { results: [], error: '在庫が不足しています。' };
+    }
 
     // 全カードを在庫に応じてpoolに展開
     const pool = lineup.flatMap((item) => Array(item.inventory).fill(item));

@@ -28,7 +28,9 @@ export class RewardPointsService {
 
     // 残高不足チェック
     if (currentBalance < dto.amount) {
-      throw new BadRequestException(`報酬ポイントが不足しています。必要: ${dto.amount}, 残高: ${currentBalance}`);
+      throw new BadRequestException(
+        `報酬ポイントが不足しています。必要: ${dto.amount}, 残高: ${currentBalance}`,
+      );
     }
 
     return this.prisma.rewardPointTransaction.create({
@@ -46,7 +48,7 @@ export class RewardPointsService {
     const transactions = await this.prisma.rewardPointTransaction.findMany({
       where: { customerId },
     });
-    
+
     // 全トランザクションの合計を計算
     return transactions.reduce((sum, tx) => sum + tx.amount, 0);
   }
@@ -57,4 +59,4 @@ export class RewardPointsService {
       orderBy: { createdAt: 'desc' },
     });
   }
-} 
+}

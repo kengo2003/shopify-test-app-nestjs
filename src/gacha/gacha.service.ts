@@ -30,7 +30,7 @@ export class GachaService {
     try {
       const lineup = await this.getGachaLineupFromCollection(collectionHandle);
       console.log('Lineup:', JSON.stringify(lineup));
-      if (!lineup.length) {
+      if (!lineup.cards.length) {
         console.error('在庫が不足しています。!lineup.length');
         return { results: [], error: '在庫が不足しています。' };
       }

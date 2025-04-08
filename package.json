@@ -1,6 +1,7 @@
 {
   "name": "shopify-test-app",
   "version": "0.0.1",
+  "packageManager": "yarn@4.1.1",
   "description": "",
   "author": "",
   "private": true,

@@ -7,11 +7,12 @@ export class GachaPointsService {
 
   async addPoints(data: any) {
     // 現在の残高を取得
-    const currentBalance = await this.getBalance(data.customerId);
+    const customerId = String(data.customerId);
+    const currentBalance = await this.getBalance(customerId);
 
     return this.prisma.gachaPointTransaction.create({
       data: {
-        customerId: data.customerId,
+        customerId: customerId,
         amount: data.amount,
         description: data.description,
         orderId: data.orderId,
@@ -22,7 +23,8 @@ export class GachaPointsService {
 
   async usePoints(data: any) {
     // 現在の残高を取得
-    const currentBalance = await this.getBalance(data.customerId);
+    const customerId = String(data.customerId);
+    const currentBalance = await this.getBalance(customerId);
 
     // 残高不足チェック
     if (currentBalance < data.amount) {
@@ -33,7 +35,7 @@ export class GachaPointsService {
 
     return this.prisma.gachaPointTransaction.create({
       data: {
-        customerId: data.customerId,
+        customerId: customerId,
         amount: -data.amount, // マイナス値で記録
         description: data.description,
         orderId: data.orderId,
@@ -44,7 +46,7 @@ export class GachaPointsService {
 
   async getBalance(customerId: string) {
     const transactions = await this.prisma.gachaPointTransaction.findMany({
-      where: { customerId },
+      where: { customerId: customerId },
     });
 
     // 全トランザクションの合計を計算
@@ -53,15 +55,14 @@ export class GachaPointsService {
 
   async listTransactions(customerId: string) {
     return this.prisma.gachaPointTransaction.findMany({
-      where: { customerId },
+      where: { customerId: customerId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async handleShopifyWebhook(webhookData: any) {
     console.log(
-      'Shopify webhook received order created:',
-      JSON.stringify(webhookData, null, 2),
+      'Shopify webhook received order created: ' + JSON.stringify(webhookData),
     );
 
     // webhookデータから必要な情報を抽出

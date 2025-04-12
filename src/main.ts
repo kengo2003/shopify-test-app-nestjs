@@ -18,6 +18,8 @@ async function bootstrap() {
       'http://127.0.0.1:9292',
       'https://card-function-test.myshopify.com',
       'https://axis-oripa.myshopify.com',
+      'http://localhost:3000',
+      'https://axis-oripa.web.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

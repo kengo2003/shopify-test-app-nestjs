@@ -22,7 +22,7 @@ async function bootstrap() {
       'https://axis-oripa.web.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
     credentials: false,
   });
 

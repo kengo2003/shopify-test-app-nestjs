@@ -245,7 +245,7 @@ export class CustomersService {
     await this.prisma.customer.update({
       where: { id },
       data: {
-        rewardPoints: customer.rewardPoints + amount,
+        gachaPoints: customer.gachaPoints + amount,
       },
     });
     await this.prisma.gachaPointTransaction.create({
@@ -254,7 +254,7 @@ export class CustomersService {
         amount: amount,
         description: '招待コード利用',
         orderId: '',
-        balanceAtTransaction: customer.rewardPoints + amount,
+        balanceAtTransaction: customer.gachaPoints + amount,
       },
     });
     return { success: true };

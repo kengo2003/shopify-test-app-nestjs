@@ -534,7 +534,7 @@ export class GachaService {
           },
         );
 
-        const productsEdges = response.data.data.collection.products.edges;
+        const productsEdges = response.data.collection.products.edges;
 
         productsEdges.forEach((product) => {
           product.node.variants.edges.forEach((variant) => {
@@ -542,8 +542,7 @@ export class GachaService {
           });
         });
 
-        hasNextPage =
-          response.data.data.collection.products.pageInfo.hasNextPage;
+        hasNextPage = response.data.collection.products.pageInfo.hasNextPage;
         cursor = hasNextPage
           ? productsEdges[productsEdges.length - 1].cursor
           : null;

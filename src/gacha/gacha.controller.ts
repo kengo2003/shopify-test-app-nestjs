@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param } from '@nestjs/common';
+import { Controller, Post, Body, Param, Get } from '@nestjs/common';
 import { GachaService } from './gacha.service';
 
 @Controller('gacha')
@@ -20,5 +20,10 @@ export class GachaController {
       body.customerId,
       body.lineItems,
     );
+  }
+
+  @Get('gacha-stock/:handle')
+  async getGachaStock(@Param('handle') handle: string) {
+    return this.gachaService.getGachaStock(handle);
   }
 }

@@ -464,4 +464,109 @@ export class GachaService {
 
     return count;
   }
+
+  // handleからコレクションIDを取得するメソッド
+  async getCollectionIdByHandle(handle: string): Promise<string | null> {
+    const query = `
+    query GetCollectionByHandle($handle: String!) {
+      collectionByHandle(handle: $handle) {
+        id
+      }
+    }
+  `;
+
+    const response = await axios.post(
+      this.shopifyUrl,
+      { query, variables: { handle } },
+      {
+        headers: {
+          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    return response.data.data.collectionByHandle?.id || null;
+  }
+
+  // 在庫合計を取得するメソッド（collectionIdを渡す）
+  async getTotalInventoryInCollection(collectionId: string): Promise<number> {
+    let hasNextPage = true;
+    let cursor: string | null = null;
+    let totalInventory = 0;
+
+    while (hasNextPage) {
+      try {
+        // APIコール間に遅延を入れる（商品数が50以上の場合の対策）
+        if (cursor) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+
+        const query = `
+        query CollectionInventory($collectionId: ID!, $cursor: String) {
+          collection(id: $collectionId) {
+            products(first: 50, after: $cursor) {
+              edges {
+                node {
+                  variants(first: 5) {  // variantは最大5個に制限
+                    edges {
+                      node {
+                        inventoryQuantity
+                      }
+                    }
+                  }
+                }
+                cursor
+              }
+              pageInfo {
+                hasNextPage
+              }
+            }
+          }
+        }
+      `;
+
+        const response = await axios.post(
+          this.shopifyUrl,
+          { query, variables: { collectionId, cursor } },
+          {
+            headers: this.headers,
+          },
+        );
+
+        const productsEdges = response.data.data.collection.products.edges;
+
+        productsEdges.forEach((product) => {
+          product.node.variants.edges.forEach((variant) => {
+            totalInventory += variant.node.inventoryQuantity;
+          });
+        });
+
+        hasNextPage =
+          response.data.data.collection.products.pageInfo.hasNextPage;
+        cursor = hasNextPage
+          ? productsEdges[productsEdges.length - 1].cursor
+          : null;
+      } catch (error: any) {
+        if (error.response?.status === 429) {
+          // レート制限エラー
+          console.log('レート制限に達しました。5秒待機します');
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    return totalInventory;
+  }
+
+  // handleだけで在庫数を合計するメソッド
+  async getGachaStock(handle: string): Promise<number | null> {
+    const collectionId = await this.getCollectionIdByHandle(handle);
+    if (!collectionId) {
+      return null; // コレクションが見つからない場合
+    }
+    return await this.getTotalInventoryInCollection(collectionId);
+  }
 }

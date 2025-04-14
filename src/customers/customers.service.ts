@@ -47,6 +47,21 @@ export class CustomersService {
   //   return response.data;
   // }
 
+  async getCustomer(id: string) {
+    try {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id },
+      });
+      if (!customer) {
+        throw new Error('Customer not found');
+      }
+      return customer;
+    } catch (error) {
+      console.error('Error fetching customer:', error);
+      throw error;
+    }
+  }
+
   // GraphQL顧客情報更新
   async updateCustomer(customerId: string, updateData: any) {
     const mutation = `
@@ -75,17 +90,24 @@ export class CustomersService {
       },
     };
 
-    const response = await axios.post(
-      this.shopifyUrl,
-      { query: mutation, variables },
-      { headers: this.headers },
-    );
+    try {
+      const response = await axios.post(
+        this.shopifyUrl,
+        { query: mutation, variables },
+        { headers: this.headers },
+      );
 
-    if (response.data.data.customerUpdate.userErrors.length) {
-      throw new Error(response.data.data.customerUpdate.userErrors[0].message);
+      if (response.data.data.customerUpdate.userErrors.length) {
+        throw new Error(
+          response.data.data.customerUpdate.userErrors[0].message,
+        );
+      }
+
+      return response.data.data.customerUpdate.customer;
+    } catch (error) {
+      console.error('Error updating customer:', error);
+      throw error;
     }
-
-    return response.data.data.customerUpdate.customer;
   }
 
   // REST API顧客情報更新

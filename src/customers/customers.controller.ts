@@ -17,6 +17,11 @@ export class CustomersController {
     return this.customersService.getCustomers();
   }
 
+  @Get(':id')
+  async getCustomer(@Param('id') id: string) {
+    return this.customersService.getCustomer(id);
+  }
+
   @Put(':id')
   async updateCustomer(@Param('id') id: string, @Body() updateData: any) {
     return this.customersService.updateCustomer(id, updateData);

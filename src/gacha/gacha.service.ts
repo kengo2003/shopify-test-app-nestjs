@@ -534,6 +534,11 @@ export class GachaService {
           },
         );
 
+        console.log(
+          'response of CollectionInventory:',
+          JSON.stringify(response.data),
+        );
+
         const productsEdges = response.data.collection.products.edges;
 
         productsEdges.forEach((product) => {

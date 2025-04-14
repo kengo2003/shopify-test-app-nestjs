@@ -508,7 +508,7 @@ export class GachaService {
             products(first: 50, after: $cursor) {
               edges {
                 node {
-                  variants(first: 5) {  // variantは最大5個に制限
+                  variants(first: 5) {
                     edges {
                       node {
                         inventoryQuantity
@@ -539,7 +539,17 @@ export class GachaService {
           JSON.stringify(response.data),
         );
 
-        const productsEdges = response.data.collection.products.edges;
+        // レスポンスデータの構造を確認
+        if (
+          !response.data ||
+          !response.data.data ||
+          !response.data.data.collection
+        ) {
+          console.error('Invalid response structure:', response.data);
+          throw new Error('Shopifyからのレスポンスが無効です');
+        }
+
+        const productsEdges = response.data.data.collection.products.edges;
 
         productsEdges.forEach((product) => {
           product.node.variants.edges.forEach((variant) => {
@@ -547,7 +557,8 @@ export class GachaService {
           });
         });
 
-        hasNextPage = response.data.collection.products.pageInfo.hasNextPage;
+        hasNextPage =
+          response.data.data.collection.products.pageInfo.hasNextPage;
         cursor = hasNextPage
           ? productsEdges[productsEdges.length - 1].cursor
           : null;

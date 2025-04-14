@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Customer } from '@prisma/client';
 import axios from 'axios';
+import { error } from 'console';
 
 @Injectable()
 export class CustomersService {
@@ -280,5 +281,27 @@ export class CustomersService {
       },
     });
     return { success: true };
+  }
+
+  async validateInviteCode(code: string) {
+    const inviteCode = await this.prisma.inviteCode.findUnique({
+      where: { code },
+    });
+    if (!inviteCode) {
+      return { success: false, error: 'Invite code not found' };
+    }
+    if (inviteCode.isActive === false) {
+      return { success: false, error: 'Invite code is not active' };
+    }
+    if (inviteCode.expiresAt < new Date()) {
+      return { success: false, error: 'Invite code has expired' };
+    }
+    if (inviteCode.maxUses <= inviteCode.currentUses) {
+      return {
+        success: false,
+        error: 'Invite code has reached its maximum usage',
+      };
+    }
+    return { success: true, inviteCode };
   }
 }

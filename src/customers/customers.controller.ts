@@ -36,4 +36,9 @@ export class CustomersController {
   async useInviteCode(@Param('id') id: string, @Body() body: any) {
     return this.customersService.useInviteCode(id, body);
   }
+
+  @Post('/invite-code/validate')
+  async validateInviteCode(@Param('code') code: string) {
+    return this.customersService.validateInviteCode(code);
+  }
 }

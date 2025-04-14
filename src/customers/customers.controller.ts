@@ -1,5 +1,6 @@
 import { Controller, Get, Put, Param, Body, Post, Res } from '@nestjs/common';
 import { CustomersService } from './customers.service';
+import { ApiBody } from '@nestjs/swagger';
 
 @Controller('customers')
 export class CustomersController {
@@ -38,7 +39,16 @@ export class CustomersController {
   }
 
   @Post('/invite-code/validate')
-  async validateInviteCode(@Param('code') code: string) {
-    return this.customersService.validateInviteCode(code);
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        code: { type: 'string', example: 'INVITE123' },
+      },
+      required: ['code'],
+    },
+  })
+  async validateInviteCode(@Body() body: { code: string }) {
+    return this.customersService.validateInviteCode(body.code);
   }
 }

@@ -284,7 +284,9 @@ export class CustomersService {
 
   async validateInviteCode(code: string) {
     const inviteCode = await this.prisma.inviteCode.findUnique({
-      where: { code },
+      where: {
+        code: code,
+      },
     });
     if (!inviteCode) {
       return { success: false, error: 'Invite code not found' };

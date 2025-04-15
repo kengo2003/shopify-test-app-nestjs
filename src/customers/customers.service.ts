@@ -47,21 +47,6 @@ export class CustomersService {
   //   return response.data;
   // }
 
-  async getCustomer(id: string) {
-    try {
-      const customer = await this.prisma.customer.findUnique({
-        where: { id },
-      });
-      if (!customer) {
-        throw new Error('Customer not found');
-      }
-      return customer;
-    } catch (error) {
-      console.error('Error fetching customer:', error);
-      throw error;
-    }
-  }
-
   // GraphQL顧客情報更新
   async updateCustomer(customerId: string, updateData: any) {
     const mutation = `

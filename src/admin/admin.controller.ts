@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ApiKeyGuard } from 'src/guards/api-key.guard';
 
@@ -36,5 +36,11 @@ export class AdminController {
     }
 
     return this.adminService.getCustomerRewardPoints(pageNum, limitNum);
+  }
+
+  @Get('customer/:id')
+  @UseGuards(ApiKeyGuard)
+  async getCustomer(@Param('id') id: string) {
+    return this.adminService.getCustomer(id);
   }
 }

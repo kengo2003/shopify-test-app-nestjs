@@ -77,4 +77,19 @@ export class AdminService {
       );
     }
   }
+
+  async getCustomer(id: string) {
+    try {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id },
+      });
+      if (!customer) {
+        throw new Error('Customer not found');
+      }
+      return customer;
+    } catch (error) {
+      console.error('Error fetching customer:', error);
+      throw error;
+    }
+  }
 }

@@ -18,40 +18,105 @@ export class DraftOrdersService {
     return 'Hello';
   }
 
-  async getDraftOrders(customerId: string) {
-    console.log(customerId);
-    try {
-      const response = await axios.get(this.shopifyUrl, {
-        headers: this.headers,
-      });
-
-      const draftOrders = response.data.draft_orders.filter(
-        (order) =>
-          String(order.customer?.id) === String(customerId) &&
-          order.status === 'open',
+  async fetchCompletedOrders(draftOrders: any[]) {
+    console.log(JSON.stringify(draftOrders));
+    const completedOrders = [];
+    draftOrders.forEach(async (completedDraftOrder) => {
+      const orderId = completedDraftOrder.order_id;
+      if (orderId === null) {
+        console.log(completedDraftOrder);
+        throw new Error('order_id is null');
+      }
+      const getOrderQuery = `
+      query {
+        order(id: "${orderId}") {
+          id
+        }
+      }
+      `;
+      const res = await axios.post(
+        this.shopifyGraphqlUrl,
+        {
+          query: getOrderQuery,
+        },
+        { headers: this.headers },
       );
-      const productIds = draftOrders
-        .flatMap((order) => order.line_items.map((item) => item.product_id))
-        .filter((id, i, arr) => id && arr.indexOf(id) === i); // 重複除外
+      console.log(`completedOrder: ${JSON.stringify(res.data.data.order)}`);
+      completedOrders.push(res.data.order);
+    });
+    return completedOrders;
+  }
 
-      const metafields = await this.fetchProductMetafields(productIds);
+  async getDraftOrders(customerId: string, first: number = 30, after?: string) {
+    try {
+      const query = `
+        query getDraftOrders($customerId: String!, $first: Int!, $after: String) {
+          draftOrders(
+            first: $first,
+            after: $after,
+            query: $customerId
+          ) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              cursor
+              node {
+                id
+                name
+                totalPrice
+                status
+                lineItems(first: 1) {
+                  edges {
+                    node {
+                      id
+                      product {
+                        id
+                        title
+                        metafield(namespace: "custom", key: "card_point_value") {
+                          value
+                        }
+                      }
+                    }
+                  }
+                } 
+                order {
+                  id
+                  fulfillments {
+                    id
+                    createdAt
+                    displayStatus
+                    estimatedDeliveryAt
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
 
-      const enrichedOrders = draftOrders.map((order) => {
-        const line_items = order.line_items.map((item) => {
-          const point = metafields[item.product_id] || null;
-          return {
-            ...item,
-            card_point_value: point,
-          };
-        });
-        return {
-          ...order,
-          line_items,
-        };
-      });
+      const res = await axios.post(
+        this.shopifyGraphqlUrl,
+        {
+          query,
+          variables: {
+            customerId: `customer_id:${customerId}`,
+            first: first,
+            after: after || null,
+          },
+        },
+        { headers: this.headers },
+      );
 
-      return enrichedOrders;
+      console.log(`res: ${JSON.stringify(res.data)}`);
+
+      return {
+        pageInfo: res.data.data.draftOrders.pageInfo,
+        edges: res.data.data.draftOrders.edges,
+      };
     } catch (err) {
+      console.error('Error:', err);
       throw new Error('下書き注文の取得に失敗しました');
     }
   }
@@ -137,12 +202,6 @@ export class DraftOrdersService {
       throw new Error('Shopify userErrors occurred');
     }
 
-    try {
-      //下書き注文を削除
-      await this.delete(orderId);
-    } catch (err) {
-      console.error('[createOrder][delete] Error:', err);
-    }
     return result.draftOrder.order;
   }
 

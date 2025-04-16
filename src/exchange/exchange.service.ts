@@ -1,3 +1,4 @@
+import { RewardPointsService } from './../points/reward-points/reward-points.service';
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import * as dotenv from 'dotenv';
@@ -7,7 +8,10 @@ dotenv.config();
 
 @Injectable()
 export class ExchangeService {
-  constructor(private readonly draftOrdersService: DraftOrdersService) {}
+  constructor(
+    private readonly draftOrdersService: DraftOrdersService,
+    private readonly rewardPointsService: RewardPointsService,
+  ) {}
 
   private shopifyUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01`;
   private graphqlUrl = `${this.shopifyUrl}/graphql.json`;
@@ -53,6 +57,7 @@ export class ExchangeService {
               edges {
                 node {
                   id
+                  inventoryQuantity
                 }
               }
             }
@@ -88,6 +93,8 @@ export class ExchangeService {
         image: product.featuredImage?.url || '',
         requiredPoints: Number(product.metafield?.value || 0),
         variantId: numericVariantId,
+        inventoryQuantity:
+          product.variants.edges[0]?.node?.inventoryQuantity || 0,
       };
     });
   }
@@ -100,6 +107,13 @@ export class ExchangeService {
   ) {
     try {
       if (!variantId) throw new Error('variant_id not found');
+
+      // 顧客の報酬ポイント減らす処理
+      await this.rewardPointsService.usePoints({
+        customerId: customerId.toString(),
+        amount: requiredPoints,
+        description: '交換所で商品と交換',
+      });
 
       // Draft Order作成
       const draftOrderRes = await axios.post(
@@ -167,10 +181,6 @@ export class ExchangeService {
           `Shopify userErrors: ${JSON.stringify(result.userErrors)}`,
         );
       }
-
-      // draft-orders.service.tsのdelete関数を実行
-      const draftOrderId = draftGid.replace('gid://shopify/DraftOrder/', '');
-      await this.draftOrdersService.delete(draftOrderId);
 
       // 正常時のレスポンス処理
       return {

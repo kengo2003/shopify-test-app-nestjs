@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import * as dotenv from 'dotenv';
+import { GachaPointsService } from '../points/gacha-points/gacha-points.service';
 
 dotenv.config();
 
 @Injectable()
 export class DraftOrdersService {
+  constructor(private readonly gachaPointsService: GachaPointsService) {}
   private shopifyUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/draft_orders.json`;
   private shopifyGraphqlUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/graphql.json`;
   private shopifyRestBase = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01`;
@@ -221,10 +223,19 @@ export class DraftOrdersService {
   async deleteFn(orderId: string, userId: string, point: number) {
     // ポイント処理と下書き削除処理
     try {
-      //ここにポイント処理
+      await this.gachaPointsService.addPoints({
+        customerId: userId.toString(),
+        amount: point,
+        description: 'ポイント変換による加算',
+        orderId: orderId.toString(),
+      });
       await this.delete(orderId);
+      console.log(
+        `[deleteFn] ポイント加算完了: ${point}pt -> 顧客: ${userId}, 注文ID: ${orderId}`,
+      );
     } catch (err) {
       console.error('[deleteFn][delete] Error:', err);
+      throw new Error('ポイント加算または注文削除に失敗しました');
     }
     console.log(
       `[deleteFn] orderId: ${orderId}, userId: ${userId}, point: ${point}`,

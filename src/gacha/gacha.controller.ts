@@ -26,4 +26,11 @@ export class GachaController {
   async getGachaStock(@Param('handle') handle: string) {
     return this.gachaService.getGachaStock(handle);
   }
+
+  @Post('today-draw-count')
+  async getTodayDrawCount(
+    @Body() body: { gachaId: string; customerId: string },
+  ) {
+    return this.gachaService.getTodayDrawCount(body.customerId, body.gachaId);
+  }
 }

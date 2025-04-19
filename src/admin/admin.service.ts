@@ -92,4 +92,26 @@ export class AdminService {
       throw error;
     }
   }
+
+  async updateCustomerPoints(id: string, body: any) {
+    try {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id },
+      });
+      if (!customer) {
+        throw new Error('Customer not found');
+      }
+
+      return this.prisma.customer.update({
+        where: { id },
+        data: {
+          gachaPoints: body.gachaPoints,
+          rewardPoints: body.rewardPoints,
+        },
+      });
+    } catch (error) {
+      console.error('Error updating customer points:', error);
+      throw error;
+    }
+  }
 }

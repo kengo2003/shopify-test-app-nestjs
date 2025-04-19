@@ -1,6 +1,15 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  UseGuards,
+  Patch,
+  Body,
+} from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ApiKeyGuard } from 'src/guards/api-key.guard';
+import { ApiBody } from '@nestjs/swagger';
 
 @Controller('admin')
 export class AdminController {
@@ -42,5 +51,20 @@ export class AdminController {
   @UseGuards(ApiKeyGuard)
   async getCustomer(@Param('id') id: string) {
     return this.adminService.getCustomer(id);
+  }
+
+  @Patch('customer/:id')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        gachaPoints: { type: 'number' },
+        rewardPoints: { type: 'number' },
+      },
+    },
+  })
+  @UseGuards(ApiKeyGuard)
+  async updateCustomer(@Param('id') id: string, @Body() body: any) {
+    return this.adminService.updateCustomerPoints(id, body);
   }
 }

@@ -21,7 +21,7 @@ async function bootstrap() {
       'http://localhost:3000',
       'https://axis-oripa.web.app',
     ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
     credentials: false,
   });

@@ -36,5 +36,11 @@ lerna-debug.log*
 
 .env
 
-.yarn/
-.yarn/install-state.gz
+# Yarn berry
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions

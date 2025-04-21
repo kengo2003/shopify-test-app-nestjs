@@ -133,10 +133,12 @@ export class GachaService {
           cardId: selected.productId,
           title: selected.title,
           image: selected.image,
+          rarity: selected.rarity,
         });
       }
 
-      return { maxRarity: 7, results: results };
+      const maxRarity = Math.max(...results.map((result) => result.rarity));
+      return { maxRarity, results: results };
     } catch (error) {
       console.error('ガチャラインナップ取得エラー:', error);
       return { results: [], error: 'ガチャラインナップの取得に失敗しました。' };
@@ -164,6 +166,15 @@ export class GachaService {
               node {
                 id
                 title
+                metafields(first: 5) {
+                  edges {
+                    node {
+                      namespace
+                      key
+                      value
+                    }
+                  }
+                }
                 variants(first: 1) {
                   edges {
                     node {
@@ -240,6 +251,14 @@ export class GachaService {
           locationId,
           inventory: variant.inventoryQuantity,
           image: product.featuredImage?.url || '',
+          rarity: parseInt(
+            product.metafields.edges.find(
+              (edge) =>
+                edge.node.key === 'card_rarity' &&
+                edge.node.namespace === 'custom',
+            )?.node?.value || '1',
+            10,
+          ),
         };
       });
 

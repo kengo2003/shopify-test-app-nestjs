@@ -256,4 +256,43 @@ describe('GachaService', () => {
       });
     });
   });
+
+  describe('getRewardPointValue', () => {
+    it('正常に報酬ポイントを取得できるべき', async () => {
+      const mockResponse = {
+        data: {
+          reward_point_value: '100',
+        },
+      };
+
+      mockedAxios.get.mockResolvedValue(mockResponse);
+
+      const result = await service.getRewardPointValue();
+
+      expect(result).toBe(100);
+      expect(mockedAxios.get).toHaveBeenCalledWith('/exchange/7574722347091');
+    });
+
+    it('報酬ポイントが未設定の場合、0を返すべき', async () => {
+      const mockResponse = {
+        data: {
+          reward_point_value: null,
+        },
+      };
+
+      mockedAxios.get.mockResolvedValue(mockResponse);
+
+      const result = await service.getRewardPointValue();
+
+      expect(result).toBe(0);
+    });
+
+    it('APIエラーが発生した場合、0を返すべき', async () => {
+      mockedAxios.get.mockRejectedValue(new Error('API Error'));
+
+      const result = await service.getRewardPointValue();
+
+      expect(result).toBe(0);
+    });
+  });
 });

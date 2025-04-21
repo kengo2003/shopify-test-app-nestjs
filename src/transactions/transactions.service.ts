@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { UsePointDto } from './dto/use-point.dto';
 import { AddPointDto } from './dto/add-point.dto';
 
@@ -8,6 +8,12 @@ export class TransactionService {
   constructor(private readonly prisma: PrismaService) {}
 
   async addPoints(dto: AddPointDto) {
+    if (dto.amount <= 0) {
+      throw new BadRequestException(
+        'ポイント数は0より大きい値である必要があります',
+      );
+    }
+
     // 現在の残高を取得
     const currentBalance = await this.getBalance(dto.customerId);
 
@@ -24,8 +30,19 @@ export class TransactionService {
 
   async usePoints(dto: UsePointDto) {
     const { customerId, amount, description, orderId } = dto;
+
+    if (amount <= 0) {
+      throw new BadRequestException(
+        'ポイント数は0より大きい値である必要があります',
+      );
+    }
+
     // 現在の残高を取得
     const currentBalance = await this.getBalance(customerId);
+
+    if (currentBalance < amount) {
+      throw new BadRequestException('残高が不足しています');
+    }
 
     return this.prisma.gachaPointTransaction.create({
       data: {

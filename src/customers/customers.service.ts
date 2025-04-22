@@ -119,10 +119,34 @@ export class CustomersService {
     const customerId = String(webhookData.id);
     const rewardPoints = 0;
     const gachaPoints = 0;
+    const inviteCode = String(webhookData.note);
 
-    // 顧客情報をPrismaを使用してデータベースに保存
     try {
+      // 1. 顧客情報をPrismaを使用してデータベースに保存
       await this.createCustomer(customerId, gachaPoints, rewardPoints);
+
+      // 2. 紹介コードが存在する場合の処理
+      if (inviteCode) {
+        // 紹介コードの検証
+        const validationResult = await this.validateInviteCode(inviteCode);
+        if (!validationResult.success) {
+          console.log(
+            `紹介コードの検証に失敗しました: ${validationResult.error}`,
+          );
+          return;
+        }
+
+        // 紹介コードのポイント値を取得
+        // const { invite_point_value } =
+        //   await this.getInviteCodeValue('7574722347091');
+        // console.log('[getInviteCodeValue]:', invite_point_value);
+
+        // 紹介コードを使用してポイントを付与
+        await this.useInviteCode(customerId, { inviteCode });
+        console.log(`顧客 ${customerId} に ポイントを付与しました`);
+      }
+
+      return { success: true };
     } catch (error: any) {
       // 既に存在する場合のエラーハンドリング
       if (error.code === 'P2002') {
@@ -132,6 +156,45 @@ export class CustomersService {
         console.log(`error in processCustomerCreateWebhook: ${error}`);
         throw error;
       }
+    }
+  }
+
+  // 設定用商品から紹介ポイントを取得
+  async getInviteCodeValue(productId: string) {
+    try {
+      const query = `
+        {
+          product(id: "gid://shopify/Product/${productId}") {
+            metafield(namespace: "custom", key: "invite_point_value") {
+              value
+            }
+          }
+        }
+      `;
+
+      const response = await axios.post(
+        this.shopifyUrl,
+        { query },
+        { headers: this.headers },
+      );
+
+      if (response.status !== 200) {
+        throw new Error(
+          `Shopify API request failed with status ${response.status}`,
+        );
+      }
+
+      const metafield = response.data.data.product.metafield;
+
+      if (!metafield) {
+        console.warn(`メタフィールドが見つかりません: productId=${productId}`);
+        return { invite_point_value: 0 };
+      }
+
+      return { invite_point_value: Number(metafield.value) || 0 };
+    } catch (error) {
+      console.error('メタフィールドの取得に失敗しました:', error);
+      return { invite_point_value: 0 };
     }
   }
 
@@ -219,51 +282,117 @@ export class CustomersService {
     return inviteCode;
   }
 
-  async useInviteCode(id: string, body: any) {
-    const { inviteCode: codeToUse } = body;
-    const amount = 100;
-    const customer = await this.prisma.customer.findUnique({
-      where: { id },
+  async useInviteCode(id: string, body: { inviteCode: string }) {
+    if (!body.inviteCode) {
+      throw new Error('招待コードが指定されていません');
+    }
+
+    const codeToUse = body.inviteCode;
+
+    // 紹介コードのポイント値を取得
+    const { invite_point_value } =
+      await this.getInviteCodeValue('7574722347091');
+    const amount = invite_point_value;
+
+    console.log(
+      `[useInviteCode] 顧客ID: ${id}, 使用する紹介コード: ${codeToUse}`,
+    );
+
+    // 紹介コードを検索（コード自体を検索）
+    const foundInviteCode = await this.prisma.inviteCode.findFirst({
+      where: {
+        code: codeToUse,
+        isActive: true,
+      },
       include: {
-        inviteCodes: true,
+        customer: true, // 紹介コードを発行した顧客の情報も取得
       },
     });
-    if (!customer) {
-      throw new Error('Customer not found');
-    }
-    const foundInviteCode = customer.inviteCodes.find(
-      (code) => code.code === codeToUse,
-    );
+
     if (!foundInviteCode) {
+      console.error(`[useInviteCode] 紹介コードが見つかりません: ${codeToUse}`);
       throw new Error('Invite code not found');
     }
+
     if (foundInviteCode.maxUses <= foundInviteCode.currentUses) {
+      console.error(
+        `[useInviteCode] 紹介コードの使用回数上限に達しています: ${codeToUse}`,
+      );
       throw new Error('Invite code has reached its maximum usage');
     }
+
     if (foundInviteCode.expiresAt < new Date()) {
+      console.error(
+        `[useInviteCode] 紹介コードの有効期限が切れています: ${codeToUse}`,
+      );
       throw new Error('Invite code has expired');
     }
-    await this.prisma.inviteCode.update({
-      where: { id: foundInviteCode.id },
-      data: {
-        currentUses: foundInviteCode.currentUses + 1,
-      },
-    });
-    await this.prisma.customer.update({
+
+    // 紹介コードを発行した顧客（紹介者）の情報を取得
+    const referrer = foundInviteCode.customer;
+
+    // 紹介コードを使用する顧客（被紹介者）の情報を取得
+    const referee = await this.prisma.customer.findUnique({
       where: { id },
-      data: {
-        gachaPoints: customer.gachaPoints + amount,
-      },
     });
-    await this.prisma.gachaPointTransaction.create({
-      data: {
-        customerId: id,
-        amount: amount,
-        description: '招待コード利用',
-        orderId: '',
-        balanceAtTransaction: customer.gachaPoints + amount,
-      },
+
+    if (!referee) {
+      console.error(`[useInviteCode] 顧客が見つかりません: ${id}`);
+      throw new Error('Customer not found');
+    }
+
+    // トランザクションで一括処理
+    await this.prisma.$transaction(async (prisma) => {
+      // 1. 紹介コードの使用回数を更新
+      await prisma.inviteCode.update({
+        where: { id: foundInviteCode.id },
+        data: {
+          currentUses: foundInviteCode.currentUses + 1,
+        },
+      });
+
+      // 2. 被紹介者（招待された側）にポイントを付与
+      await prisma.customer.update({
+        where: { id },
+        data: {
+          gachaPoints: referee.gachaPoints + amount,
+        },
+      });
+
+      // 3. 紹介者（招待した側）にポイントを付与
+      await prisma.customer.update({
+        where: { id: referrer.id },
+        data: {
+          gachaPoints: referrer.gachaPoints + amount,
+        },
+      });
+
+      // 4. 被紹介者のポイント取引履歴を記録
+      await prisma.gachaPointTransaction.create({
+        data: {
+          customerId: id,
+          amount: amount,
+          description: '招待コード利用（被紹介者）',
+          orderId: '',
+          balanceAtTransaction: referee.gachaPoints + amount,
+        },
+      });
+
+      // 5. 紹介者のポイント取引履歴を記録
+      await prisma.gachaPointTransaction.create({
+        data: {
+          customerId: referrer.id,
+          amount: amount,
+          description: '招待コード利用（紹介者）',
+          orderId: '',
+          balanceAtTransaction: referrer.gachaPoints + amount,
+        },
+      });
     });
+
+    console.log(
+      `[useInviteCode] ポイント付与完了: 被紹介者 ${id} と紹介者 ${referrer.id} に ${amount} ポイントを付与`,
+    );
     return { success: true };
   }
 

@@ -8,5 +8,6 @@ import { RewardPointsModule } from '../points/reward-points/reward-points.module
   imports: [DraftOrdersModule, RewardPointsModule],
   controllers: [ExchangeController],
   providers: [ExchangeService],
+  exports: [ExchangeService],
 })
 export class ExchangeModule {}

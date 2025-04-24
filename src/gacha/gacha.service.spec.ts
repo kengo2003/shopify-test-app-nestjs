@@ -3,6 +3,7 @@ import { GachaService } from './gacha.service';
 import { RewardPointsService } from '../points/reward-points/reward-points.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GachaPointsService } from '../points/gacha-points/gacha-points.service';
+import { ExchangeService } from '../exchange/exchange.service';
 import axios from 'axios';
 import { GachaResultStatus } from '@prisma/client';
 
@@ -14,6 +15,7 @@ describe('GachaService', () => {
   let rewardPointsService: RewardPointsService;
   let prismaService: PrismaService;
   let gachaPointService: GachaPointsService;
+  let exchangeService: ExchangeService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -43,6 +45,12 @@ describe('GachaService', () => {
             usePoints: jest.fn(),
           },
         },
+        {
+          provide: ExchangeService,
+          useValue: {
+            getRewardPointValue: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -50,6 +58,7 @@ describe('GachaService', () => {
     rewardPointsService = module.get<RewardPointsService>(RewardPointsService);
     prismaService = module.get<PrismaService>(PrismaService);
     gachaPointService = module.get<GachaPointsService>(GachaPointsService);
+    exchangeService = module.get<ExchangeService>(ExchangeService);
   });
 
   describe('drawGacha', () => {
@@ -115,6 +124,17 @@ describe('GachaService', () => {
             locationId: '1',
             inventory: 10,
             image: 'test.jpg',
+            rarity: 80,
+          },
+          {
+            productId: '2',
+            title: 'Test Card 2',
+            variantId: '2',
+            inventoryItemId: '2',
+            locationId: '2',
+            inventory: 10,
+            image: 'test2.jpg',
+            rarity: 10,
           },
         ],
         cost: 100,
@@ -171,11 +191,102 @@ describe('GachaService', () => {
 
       expect(result.error).toBeUndefined();
       expect(result.results).toHaveLength(1);
+      expect(result.maxRarity).toBeDefined();
+      expect(result.maxRarity).toBeLessThanOrEqual(80);
+      expect(result.maxRarity).toBeGreaterThanOrEqual(10);
       expect(result.results[0]).toEqual({
-        cardId: '1',
-        title: 'Test Card',
-        image: 'test.jpg',
+        cardId: expect.any(String),
+        title: expect.any(String),
+        image: expect.any(String),
+        rarity: expect.any(Number),
       });
+    });
+
+    it('複数のガチャを実行した場合、最大レア度が正しく計算されるべき', async () => {
+      const mockLineup = {
+        cards: [
+          {
+            productId: '1',
+            title: 'Test Card',
+            variantId: '1',
+            inventoryItemId: '1',
+            locationId: '1',
+            inventory: 10,
+            image: 'test.jpg',
+            rarity: 80,
+          },
+          {
+            productId: '2',
+            title: 'Test Card 2',
+            variantId: '2',
+            inventoryItemId: '2',
+            locationId: '2',
+            inventory: 10,
+            image: 'test2.jpg',
+            rarity: 10,
+          },
+        ],
+        cost: 100,
+      };
+
+      jest
+        .spyOn(service as any, 'getGachaLineupFromCollection')
+        .mockResolvedValue(mockLineup);
+      jest.spyOn(prismaService.customer, 'findUnique').mockResolvedValue({
+        id: '1',
+        gachaPoints: 400,
+        rewardPoints: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isDeleted: false,
+        deletedAt: null,
+      });
+      jest
+        .spyOn(service as any, 'createDraftOrder')
+        .mockResolvedValue({ id: '1' });
+      jest
+        .spyOn(service as any, 'adjustInventory')
+        .mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'getRewardPointValue').mockResolvedValue(10);
+      jest.spyOn(rewardPointsService, 'addPoints').mockResolvedValue({
+        id: '1',
+        createdAt: new Date(),
+        customerId: '1',
+        amount: 10,
+        description: 'Test',
+        balanceAtTransaction: 10,
+        gachaResultId: '1',
+      });
+      jest.spyOn(prismaService.gachaResult, 'create').mockResolvedValue({
+        id: '1',
+        customerId: '1',
+        gachaId: 'test-collection',
+        cardId: '1',
+        draftOrderId: '1',
+        createdAt: new Date(),
+        status: GachaResultStatus.PENDING,
+        selectionDeadline: new Date(),
+        rewardPointTransactionId: '1',
+        selectedAt: null,
+        redeemedAt: null,
+        shippedAt: null,
+        deliveredAt: null,
+        shippingAddress: null,
+        trackingNumber: null,
+      });
+      jest.spyOn(gachaPointService, 'usePoints').mockResolvedValue(undefined);
+
+      const result = await service.drawGacha('test-collection', 1, 2);
+
+      expect(result.error).toBeUndefined();
+      expect(result.results).toHaveLength(2);
+      expect(result.maxRarity).toBeDefined();
+      expect(result.maxRarity).toBeLessThanOrEqual(80);
+      expect(result.maxRarity).toBeGreaterThanOrEqual(10);
+      expect(result.results[0].rarity).toBeLessThanOrEqual(80);
+      expect(result.results[0].rarity).toBeGreaterThanOrEqual(10);
+      expect(result.results[1].rarity).toBeLessThanOrEqual(80);
+      expect(result.results[1].rarity).toBeGreaterThanOrEqual(10);
     });
   });
 
@@ -202,6 +313,17 @@ describe('GachaService', () => {
                     node: {
                       id: '1',
                       title: 'Test Card',
+                      metafields: {
+                        edges: [
+                          {
+                            node: {
+                              namespace: 'custom',
+                              key: 'card_rarity',
+                              value: '80',
+                            },
+                          },
+                        ],
+                      },
                       variants: {
                         edges: [
                           {
@@ -253,7 +375,49 @@ describe('GachaService', () => {
         locationId: '1',
         inventory: 10,
         image: 'test.jpg',
+        rarity: 80,
       });
+    });
+  });
+
+  describe('getRewardPointValue', () => {
+    it('正常に報酬ポイントを取得できるべき', async () => {
+      const mockResponse = {
+        reward_point_value: 100,
+      };
+
+      jest
+        .spyOn(exchangeService, 'getRewardPointValue')
+        .mockResolvedValue(mockResponse);
+
+      const result = await service.getRewardPointValue();
+
+      expect(result).toBe(100);
+      expect(exchangeService.getRewardPointValue).toHaveBeenCalledWith(
+        '7574722347091',
+      );
+    });
+
+    it('報酬ポイントが未設定の場合、0を返すべき', async () => {
+      const mockResponse = {
+        data: {
+          reward_point_value: null,
+        },
+      };
+
+      mockedAxios.get.mockResolvedValue(mockResponse);
+
+      const result = await service.getRewardPointValue();
+
+      expect(result).toBe(0);
+    });
+
+    it('APIエラーが発生した場合、0を返すべき', async () => {
+      mockedAxios.get.mockRejectedValue(new Error('API Error'));
+
+      const result = await service.getRewardPointValue();
+
+      expect(result).toBe(0);
     });
   });
 });

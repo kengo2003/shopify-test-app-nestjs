@@ -5,6 +5,7 @@ import { RewardPointsService } from '../points/reward-points/reward-points.servi
 import { PrismaService } from '../prisma/prisma.service';
 import { GachaResultStatus } from '@prisma/client';
 import { GachaPointsService } from '../points/gacha-points/gacha-points.service';
+import { ExchangeService } from '../exchange/exchange.service';
 dotenv.config();
 
 @Injectable()
@@ -13,6 +14,7 @@ export class GachaService {
     private readonly rewardPointsService: RewardPointsService,
     private readonly prisma: PrismaService,
     private readonly gachaPointService: GachaPointsService,
+    private readonly exchangeService: ExchangeService,
   ) {}
 
   private shopifyUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/graphql.json`;
@@ -131,10 +133,12 @@ export class GachaService {
           cardId: selected.productId,
           title: selected.title,
           image: selected.image,
+          rarity: selected.rarity,
         });
       }
 
-      return { maxRarity: 7, results: results };
+      const maxRarity = Math.max(...results.map((result) => result.rarity));
+      return { maxRarity, results: results };
     } catch (error) {
       console.error('ガチャラインナップ取得エラー:', error);
       return { results: [], error: 'ガチャラインナップの取得に失敗しました。' };
@@ -162,6 +166,15 @@ export class GachaService {
               node {
                 id
                 title
+                metafields(first: 5) {
+                  edges {
+                    node {
+                      namespace
+                      key
+                      value
+                    }
+                  }
+                }
                 variants(first: 1) {
                   edges {
                     node {
@@ -202,9 +215,9 @@ export class GachaService {
       const metafields =
         res.data?.data?.collectionByHandle?.metafields?.edges || [];
 
-      console.log(`res: ${JSON.stringify(res.data)}`);
-      console.log('Edges:', JSON.stringify(edges));
-      console.log('Metafields:', JSON.stringify(metafields));
+      // console.log(`res: ${JSON.stringify(res.data)}`);
+      // console.log('Edges:', JSON.stringify(edges));
+      // console.log('Metafields:', JSON.stringify(metafields));
 
       const cost = metafields.find(
         (edge) =>
@@ -238,6 +251,14 @@ export class GachaService {
           locationId,
           inventory: variant.inventoryQuantity,
           image: product.featuredImage?.url || '',
+          rarity: parseInt(
+            product.metafields.edges.find(
+              (edge) =>
+                edge.node.key === 'card_rarity' &&
+                edge.node.namespace === 'custom',
+            )?.node?.value || '1',
+            10,
+          ),
         };
       });
 
@@ -311,30 +332,30 @@ export class GachaService {
 
   // メタフィールドから報酬ポイントを取得
   async getRewardPointValue(): Promise<number> {
-    const query = `
-    {
-      shop {
-        metafield(namespace: "custom", key: "required_reward_points") {
-          value
-        }
-      }
-    }
-  `;
-    const res = await axios.post(
-      this.shopifyUrl,
-      { query },
-      { headers: this.headers },
-    );
+    //   const query = `
+    //   {
+    //     shop {
+    //       metafield(namespace: "custom", key: "required_reward_points") {
+    //         value
+    //       }
+    //     }
+    //   }
+    // `;
+    // const res = await axios.post(
+    //   this.shopifyUrl,
+    //   { query },
+    //   { headers: this.headers },
+    // );
 
-    const metafield = res.data?.data?.shop?.metafield;
-    if (!metafield || !metafield.value) {
-      console.warn(
-        '[RewardPoint] メタフィールドが未設定です。デフォルト0ptを返します',
-      );
+    try {
+      const { reward_point_value } =
+        await this.exchangeService.getRewardPointValue('7574722347091');
+      console.log('[getRewardPointValue]:', reward_point_value);
+      return reward_point_value;
+    } catch (err) {
+      console.error('報酬ポイントの取得に失敗:', err);
       return 0;
     }
-
-    return parseInt(metafield.value, 10);
   }
 
   //ガチャのラインナップ取得関数

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DraftOrdersService } from './draft-orders.service';
 import { GachaPointsService } from '../points/gacha-points/gacha-points.service';
+import { GachaService } from '../gacha/gacha.service';
 import axios from 'axios';
 
 jest.mock('axios');
@@ -8,6 +9,7 @@ jest.mock('axios');
 describe('DraftOrdersService', () => {
   let service: DraftOrdersService;
   let gachaPointsService: GachaPointsService;
+  let gachaService: GachaService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -19,11 +21,18 @@ describe('DraftOrdersService', () => {
             addPoints: jest.fn(),
           },
         },
+        {
+          provide: GachaService,
+          useValue: {
+            adjustInventory: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<DraftOrdersService>(DraftOrdersService);
     gachaPointsService = module.get<GachaPointsService>(GachaPointsService);
+    gachaService = module.get<GachaService>(GachaService);
   });
 
   it('should be defined', () => {
@@ -146,7 +155,9 @@ describe('DraftOrdersService', () => {
   describe('deleteFn', () => {
     it('should delete draft order and add points successfully', async () => {
       const mockAddPoints = jest.fn().mockResolvedValue({});
+      const mockAdjustInventory = jest.fn().mockResolvedValue({});
       (gachaPointsService.addPoints as jest.Mock) = mockAddPoints;
+      (gachaService.adjustInventory as jest.Mock) = mockAdjustInventory;
       (axios.delete as jest.Mock).mockResolvedValue({});
 
       const result = await service.deleteFn('123', '456', 100);
@@ -157,6 +168,7 @@ describe('DraftOrdersService', () => {
         description: 'ポイント変換による加算',
         orderId: '123',
       });
+      expect(mockAdjustInventory).toHaveBeenCalled();
       expect(result).toEqual({
         message: '[deleteFn] Draft order deleted and Add point',
       });

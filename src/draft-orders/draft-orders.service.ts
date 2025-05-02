@@ -1,13 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import axios from 'axios';
 import * as dotenv from 'dotenv';
 import { GachaPointsService } from '../points/gacha-points/gacha-points.service';
+import { GachaService } from '../gacha/gacha.service';
 
 dotenv.config();
 
 @Injectable()
 export class DraftOrdersService {
-  constructor(private readonly gachaPointsService: GachaPointsService) {}
+  constructor(
+    private readonly gachaPointsService: GachaPointsService,
+    @Inject(forwardRef(() => GachaService))
+    private readonly gachaService: GachaService,
+  ) {}
   private shopifyUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/draft_orders.json`;
   private shopifyGraphqlUrl = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01/graphql.json`;
   private shopifyRestBase = `https://${process.env.SHOPIFY_STORE_NAME}/admin/api/2025-01`;
@@ -220,26 +225,98 @@ export class DraftOrdersService {
     }
   }
 
+  // 下書き注文の商品情報を取得するメソッド
+  private async getDraftOrderLineItems(draftOrderId: string) {
+    const query = `
+      query {
+        draftOrder(id: "gid://shopify/DraftOrder/${draftOrderId}") {
+          lineItems(first: 1) {
+            edges {
+              node {
+                variant {
+                  id
+                  inventoryItem {
+                    id
+                    inventoryLevels(first: 1) {
+                      edges {
+                        node {
+                          location {
+                            id
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const response = await axios.post(
+      this.shopifyGraphqlUrl,
+      { query },
+      { headers: this.headers },
+    );
+
+    if (response.data.errors) {
+      console.error('[getDraftOrderLineItems] エラー:', response.data.errors);
+      throw new Error('下書き注文の商品情報取得に失敗しました');
+    }
+
+    const lineItem = response.data.data.draftOrder.lineItems.edges[0]?.node;
+    if (!lineItem) {
+      throw new Error('下書き注文に商品が見つかりません');
+    }
+
+    return {
+      inventoryItemId: lineItem.variant.inventoryItem.id,
+      locationId:
+        lineItem.variant.inventoryItem.inventoryLevels.edges[0]?.node?.location
+          ?.id,
+    };
+  }
+
   async deleteFn(orderId: string, userId: string, point: number) {
-    // ポイント処理と下書き削除処理
     try {
+      // 1. 下書き注文の商品情報を取得
+      const { inventoryItemId, locationId } =
+        await this.getDraftOrderLineItems(orderId);
+      console.log(
+        `[deleteFn] 商品情報取得成功: inventoryItemId=${inventoryItemId}, locationId=${locationId}`,
+      );
+
+      // 2. 下書き注文を削除
+      await this.delete(orderId);
+      console.log('[deleteFn] 下書き注文削除成功');
+
+      // 3. 在庫を戻す
+      await this.gachaService.adjustInventory(inventoryItemId, locationId, 1);
+      console.log('[deleteFn] 在庫調整成功');
+
+      // 4. ポイント加算
       await this.gachaPointsService.addPoints({
         customerId: userId.toString(),
-        amount: point,
+        amount: Number(point),
         description: 'ポイント変換による加算',
         orderId: orderId.toString(),
       });
-      await this.delete(orderId);
-      console.log(
-        `[deleteFn] ポイント加算完了: ${point}pt -> 顧客: ${userId}, 注文ID: ${orderId}`,
+      console.log(`[deleteFn] ポイント加算成功: ${point}ポイント`);
+
+      return { message: '[deleteFn] Draft order deleted and Add point' };
+    } catch (err: unknown) {
+      console.error('[deleteFn] エラー詳細:', {
+        error: err,
+        orderId,
+        userId,
+        point,
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+      throw new Error(
+        `ポイント加算または注文削除に失敗しました: ${err instanceof Error ? err.message : String(err)}`,
       );
-    } catch (err) {
-      console.error('[deleteFn][delete] Error:', err);
-      throw new Error('ポイント加算または注文削除に失敗しました');
     }
-    console.log(
-      `[deleteFn] orderId: ${orderId}, userId: ${userId}, point: ${point}`,
-    );
-    return { message: '[deleteFn] Draft order deleted and Add point' };
   }
 }

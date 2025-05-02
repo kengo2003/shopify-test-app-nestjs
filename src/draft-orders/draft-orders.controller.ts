@@ -42,12 +42,12 @@ export class DraftOrdersController {
 
   @Post('delete')
   async deleteFn(
-    @Body() body: { orderId: string; userId: string; points: number },
+    @Body() body: { orderId: string; userId: string; point: number },
   ) {
     return this.draftOrdersService.deleteFn(
       body.orderId,
       body.userId,
-      body.points,
+      body.point,
     );
   }
 }

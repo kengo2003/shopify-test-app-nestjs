@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import axios from 'axios';
 import * as dotenv from 'dotenv';
 import { RewardPointsService } from '../points/reward-points/reward-points.service';
@@ -6,6 +6,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GachaResultStatus } from '@prisma/client';
 import { GachaPointsService } from '../points/gacha-points/gacha-points.service';
 import { ExchangeService } from '../exchange/exchange.service';
+import { DraftOrdersService } from '../draft-orders/draft-orders.service';
+
 dotenv.config();
 
 @Injectable()
@@ -14,6 +16,8 @@ export class GachaService {
     private readonly rewardPointsService: RewardPointsService,
     private readonly prisma: PrismaService,
     private readonly gachaPointService: GachaPointsService,
+    @Inject(forwardRef(() => DraftOrdersService))
+    private readonly draftOrdersService: DraftOrdersService,
     private readonly exchangeService: ExchangeService,
   ) {}
 

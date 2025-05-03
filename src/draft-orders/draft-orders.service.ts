@@ -245,19 +245,6 @@ export class DraftOrdersService {
     return result.draftOrder.order;
   }
 
-  //下書き注文削除関数
-  async delete(orderId: string) {
-    try {
-      const url = `${this.shopifyRestBase}/draft_orders/${orderId}.json`;
-      await axios.delete(url, { headers: this.headers });
-
-      return { message: `[delete] Draft order ${orderId}` };
-    } catch (err) {
-      console.error('[delete] Error:', err);
-      throw new Error('Failed to delete draft order');
-    }
-  }
-
   // 下書き注文の商品情報を取得するメソッド
   private async getDraftOrderLineItems(draftOrderId: string) {
     const query = `

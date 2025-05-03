@@ -1,6 +1,15 @@
-import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  Query,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { DraftOrdersService } from './draft-orders.service';
-import { ApiBody, ApiQuery } from '@nestjs/swagger';
+import { ApiBody, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 @Controller('apps/draft-orders')
 export class DraftOrdersController {
@@ -49,5 +58,17 @@ export class DraftOrdersController {
       body.userId,
       body.point,
     );
+  }
+}
+
+@ApiTags('Batch Operations')
+@Controller('batch')
+export class DraftOrdersBatchController {
+  constructor(private readonly service: DraftOrdersService) {}
+
+  @Post('auto-convert-drafts')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async triggerAutoConvert() {
+    await this.service.autoConvertOlderThan(7);
   }
 }

@@ -108,6 +108,7 @@ export class DraftOrdersService {
                 } 
                 order {
                   id
+                  cancelledAt
                   fulfillments {
                     id
                     createdAt
@@ -134,11 +135,14 @@ export class DraftOrdersService {
         { headers: this.headers },
       );
 
-      console.log(`res: ${JSON.stringify(res.data)}`);
+      // キャンセルされた注文を除外
+      const filteredEdges = res.data.data.draftOrders.edges.filter(
+        (edge) => !edge.node.order?.cancelledAt,
+      );
 
       return {
         pageInfo: res.data.data.draftOrders.pageInfo,
-        edges: res.data.data.draftOrders.edges,
+        edges: filteredEdges,
       };
     } catch (err) {
       console.error('Error:', err);
@@ -186,6 +190,13 @@ export class DraftOrdersService {
   async createOrder(orderId: string) {
     const gid = `gid://shopify/DraftOrder/${orderId}`;
 
+    // 1. 下書き注文の商品情報を取得
+    const { inventoryItemId, locationId } =
+      await this.getDraftOrderLineItems(orderId);
+    console.log(
+      `[createOrder] 商品情報取得成功: inventoryItemId=${inventoryItemId}, locationId=${locationId}`,
+    );
+
     const query = `
       mutation {
         draftOrderComplete(id: "${gid}") {
@@ -226,6 +237,10 @@ export class DraftOrdersService {
       console.error('[createOrder] userErrors:', result.userErrors);
       throw new Error('Shopify userErrors occurred');
     }
+
+    // 2. 在庫を戻す（バックエンド側の在庫管理のため）
+    await this.gachaService.adjustInventory(inventoryItemId, locationId, 1);
+    console.log('[createOrder] 在庫調整成功');
 
     return result.draftOrder.order;
   }
@@ -297,24 +312,84 @@ export class DraftOrdersService {
     };
   }
 
-  async deleteFn(orderId: string, userId: string, point: number) {
+  private async cancelOrder(orderId: string) {
+    const gid = orderId.startsWith('gid://')
+      ? orderId
+      : `gid://shopify/Order/${orderId}`;
+
+    const query = `
+      mutation {
+        orderCancel(
+          orderId: "${gid}",
+          reason: CUSTOMER,
+          refund: false,
+          restock: true,
+          notifyCustomer: false
+        ) {
+          job { id }  
+          orderCancelUserErrors { field message }
+          userErrors { field message }
+        }
+      }
+    `;
+
     try {
-      // 1. 下書き注文の商品情報を取得
-      const { inventoryItemId, locationId } =
-        await this.getDraftOrderLineItems(orderId);
-      console.log(
-        `[deleteFn] 商品情報取得成功: inventoryItemId=${inventoryItemId}, locationId=${locationId}`,
+      const response = await axios.post(
+        this.shopifyGraphqlUrl,
+        { query },
+        { headers: this.headers },
       );
 
-      // 2. 下書き注文を削除
-      await this.delete(orderId);
-      console.log('[deleteFn] 下書き注文削除成功');
+      const data = response.data;
 
-      // 3. 在庫を戻す
-      await this.gachaService.adjustInventory(inventoryItemId, locationId, 1);
-      console.log('[deleteFn] 在庫調整成功');
+      if (data.errors) {
+        console.error('[cancelOrder] GraphQL error:', {
+          errors: data.errors,
+          orderId,
+          gid,
+          query,
+        });
+        throw new Error(
+          `Shopify GraphQL error: ${JSON.stringify(data.errors)}`,
+        );
+      }
 
-      // 4. ポイント加算
+      const result = data.data.orderCancel;
+
+      if (result.userErrors.length > 0) {
+        console.error('[cancelOrder] userErrors:', {
+          userErrors: result.userErrors,
+          orderId,
+          gid,
+        });
+        throw new Error(
+          `Shopify userErrors: ${JSON.stringify(result.userErrors)}`,
+        );
+      }
+
+      return result.order;
+    } catch (error) {
+      console.error('[cancelOrder] Unexpected error:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        orderId,
+        gid,
+      });
+      throw error;
+    }
+  }
+
+  async deleteFn(orderId: string, userId: string, point: number) {
+    try {
+      // 1. 下書き注文を正式注文化（この中で在庫を戻す処理も実行）
+      const order = await this.createOrder(orderId);
+      console.log('[deleteFn] 下書き注文を正式注文化成功');
+
+      // 2. 正式注文をキャンセル
+      await this.cancelOrder(order.id);
+      console.log('[deleteFn] 正式注文をキャンセル成功');
+
+      // 3. ポイント加算
       await this.gachaPointsService.addPoints({
         customerId: userId.toString(),
         amount: Number(point),
@@ -323,7 +398,10 @@ export class DraftOrdersService {
       });
       console.log(`[deleteFn] ポイント加算成功: ${point}ポイント`);
 
-      return { message: '[deleteFn] Draft order deleted and Add point' };
+      return {
+        message:
+          '[deleteFn] Draft order converted to order, cancelled and Add point',
+      };
     } catch (err: unknown) {
       console.error('[deleteFn] エラー詳細:', {
         error: err,
@@ -333,7 +411,7 @@ export class DraftOrdersService {
         stack: err instanceof Error ? err.stack : undefined,
       });
       throw new Error(
-        `ポイント加算または注文削除に失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+        `ポイント加算または注文処理に失敗しました: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

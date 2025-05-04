@@ -9,6 +9,7 @@ import { GachaPointsModule } from './points/gacha-points/gacha-points.module';
 import { RewardPointsModule } from './points/reward-points/reward-points.module';
 import { CustomersModule } from './customers/customers.module';
 import { AdminModule } from './admin/admin.module';
+import { AutoConvertModule } from './batch/auto-convert.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AdminModule } from './admin/admin.module';
     RewardPointsModule,
     CustomersModule,
     AdminModule,
+    AutoConvertModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -3,26 +3,8 @@ import axios from 'axios';
 import * as dotenv from 'dotenv';
 import { GachaPointsService } from '../points/gacha-points/gacha-points.service';
 import { GachaService } from '../gacha/gacha.service';
-import { DateTime } from 'luxon';
 
 dotenv.config();
-
-interface Draft {
-  id: string;
-  createdAt: string;
-  name: string;
-  noteAttributes?: Array<{ name: string; value: string }>;
-  customer?: { id: string };
-  lineItems?: {
-    edges: Array<{
-      node: {
-        product: {
-          metafield: { value: string } | null;
-        } | null;
-      };
-    }>;
-  };
-}
 
 @Injectable()
 export class DraftOrdersService {
@@ -188,7 +170,9 @@ export class DraftOrdersService {
   }
 
   async createOrder(orderId: string) {
-    const gid = `gid://shopify/DraftOrder/${orderId}`;
+    const gid = orderId.startsWith('gid://')
+      ? orderId
+      : `gid://shopify/DraftOrder/${orderId}`;
 
     // 1. 下書き注文の商品情報を取得
     const { inventoryItemId, locationId } =
@@ -247,9 +231,13 @@ export class DraftOrdersService {
 
   // 下書き注文の商品情報を取得するメソッド
   private async getDraftOrderLineItems(draftOrderId: string) {
+    const gid = draftOrderId.startsWith('gid://')
+      ? draftOrderId
+      : `gid://shopify/DraftOrder/${draftOrderId}`;
+
     const query = `
       query {
-        draftOrder(id: "gid://shopify/DraftOrder/${draftOrderId}") {
+        draftOrder(id: "${gid}") {
           lineItems(first: 1) {
             edges {
               node {
@@ -309,7 +297,7 @@ export class DraftOrdersService {
         orderCancel(
           orderId: "${gid}",
           reason: CUSTOMER,
-          refund: false,
+          refund: true,
           restock: true,
           notifyCustomer: false
         ) {
@@ -390,141 +378,13 @@ export class DraftOrdersService {
           '[deleteFn] Draft order converted to order, cancelled and Add point',
       };
     } catch (err: unknown) {
-      console.error('[deleteFn] エラー詳細:', {
-        error: err,
-        orderId,
-        userId,
-        point,
-        stack: err instanceof Error ? err.stack : undefined,
-      });
-      throw new Error(
-        `ポイント加算または注文処理に失敗しました: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
-
-  private getPointValueFromDraft(draft: Draft): number {
-    const metafieldValue =
-      draft.lineItems?.edges[0]?.node?.product?.metafield?.value;
-    if (!metafieldValue) {
-      console.debug(
-        `[autoConvert] ポイント値が未設定です。Draft ID: ${draft.id}`,
-      );
-      return 0;
-    }
-
-    const pointValue = parseInt(metafieldValue, 10);
-    if (isNaN(pointValue)) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
       console.error(
-        `[autoConvert] 不正なポイント値です。Draft ID: ${draft.id}, Value: ${metafieldValue}`,
+        `[deleteFn] エラー - Draft: ${orderId}, エラー: ${errorMessage}`,
       );
-      return 0;
-    }
-
-    return pointValue;
-  }
-
-  async autoConvertOlderThan(days = 7) {
-    const jstNow = DateTime.now().setZone('Asia/Tokyo');
-    const thresholdUtcIso = jstNow
-      .minus({ days })
-      .startOf('day')
-      .toUTC()
-      .toISO();
-
-    let cursor: string | null = null;
-    let processedCount = 0;
-    let errorCount = 0;
-
-    try {
-      do {
-        const { orders, nextCursor } = await this.fetchDraftOrders({
-          beforeIso: thresholdUtcIso,
-          cursor,
-        });
-
-        for (const draft of orders) {
-          try {
-            if (draft.noteAttributes?.some((n) => n.name === 'autoConverted')) {
-              console.debug(`[autoConvert] スキップ - Draft ID: ${draft.id}`);
-              continue;
-            }
-
-            const customerId = draft.customer?.id;
-            if (!customerId) {
-              console.warn(`[autoConvert] 顧客IDなし - Draft ID: ${draft.id}`);
-              continue;
-            }
-
-            const point = this.getPointValueFromDraft(draft);
-            await this.deleteFn(draft.id, customerId, point);
-            processedCount++;
-
-            console.log(
-              `[autoConvert] 完了 - Draft: ${draft.id}, Customer: ${customerId}, Points: ${point}`,
-            );
-          } catch (error) {
-            errorCount++;
-            console.error(`[autoConvert] エラー - Draft: ${draft.id}`, error);
-          }
-        }
-
-        cursor = nextCursor;
-      } while (cursor);
-
-      console.log(
-        `[autoConvert] 処理完了 - 成功: ${processedCount}件, 失敗: ${errorCount}件`,
+      throw new Error(
+        `ポイント加算または注文処理に失敗しました: ${errorMessage}`,
       );
-    } catch (error) {
-      console.error('[autoConvert] 致命的なエラー', error);
-      throw error;
     }
-  }
-
-  /** GraphQL で OPEN & 古いものだけ取得 */
-  private async fetchDraftOrders(opts: {
-    beforeIso: string;
-    cursor: string | null;
-  }): Promise<{ orders: Draft[]; nextCursor: string | null }> {
-    const query = `
-      query($cursor:String, $before:DateTime!) {
-        draftOrders(first: 100, after:$cursor,
-                    query:"status:open created_at:<$before") {
-          pageInfo { hasNextPage endCursor }
-          nodes {
-            id createdAt name
-            noteAttributes { name value }
-            customer { id }
-            lineItems(first: 1) {
-              edges {
-                node {
-                  product {
-                    metafield(namespace: "custom", key: "card_point_value") {
-                      value
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    `;
-    const resp = await axios.post(
-      this.shopifyGraphqlUrl,
-      {
-        query,
-        variables: {
-          cursor: opts.cursor,
-          before: opts.beforeIso,
-        },
-      },
-      { headers: this.headers },
-    );
-    const page = resp.data.data.draftOrders;
-    return {
-      orders: page.nodes,
-      nextCursor: page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null,
-    };
   }
 }

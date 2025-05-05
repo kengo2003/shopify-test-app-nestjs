@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
 import { DraftOrdersService } from './draft-orders.service';
+import { ApiBody, ApiQuery } from '@nestjs/swagger';
 
 @Controller('apps/draft-orders')
 export class DraftOrdersController {
@@ -11,11 +12,26 @@ export class DraftOrdersController {
   }
 
   @Get(':customerId')
-  async getDraftOrders(@Param('customerId') customId: string) {
-    return this.draftOrdersService.getDraftOrders(customId);
+  @ApiQuery({ name: 'pageSize', required: false, type: Number })
+  @ApiQuery({ name: 'cursor', required: false, type: String })
+  async getDraftOrders(
+    @Param('customerId') customerId: string,
+    @Query('pageSize') pageSize?: number,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.draftOrdersService.getDraftOrders(customerId, pageSize, cursor);
   }
 
   @Post('create')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        orderId: { type: 'string', example: '1234567890' },
+      },
+      required: ['orderId'],
+    },
+  })
   async createOrder(@Body() body: { orderId: string }) {
     const result = await this.draftOrdersService.createOrder(body.orderId);
     return {
@@ -26,12 +42,12 @@ export class DraftOrdersController {
 
   @Post('delete')
   async deleteFn(
-    @Body() body: { orderId: string; userId: string; points: number },
+    @Body() body: { orderId: string; userId: string; point: number },
   ) {
     return this.draftOrdersService.deleteFn(
       body.orderId,
       body.userId,
-      body.points,
+      body.point,
     );
   }
 }

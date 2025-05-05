@@ -1,0 +1,114 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id                String                @id @unique // Shopify顧客ID
+  gachaPoints       Int                   @default(0) // ガチャを回すためのポイント
+  rewardPoints      Int                   @default(0) // 報酬ポイント
+  gachaTransactions GachaPointTransaction[]    // ガチャポイントのトランザクション
+  rewardTransactions RewardPointTransaction[]  // 報酬ポイントのトランザクション
+  inviteCodes       InviteCode[]          // 招待コード（複数持てるように変更）
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  isDeleted         Boolean               @default(false)
+  deletedAt         DateTime?
+}
+
+model GachaPointTransaction {
+  id                  String    @id @default(cuid())
+  customerId          String
+  amount              Int       // ポイント増減（プラス or マイナス）
+  description         String?   // 付与理由や使用理由（任意）
+  orderId             String?   // 注文ID（オプション）
+  balanceAtTransaction Int      // トランザクション時のポイント残高
+  createdAt           DateTime  @default(now())
+  customer            Customer  @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+}
+
+model RewardPointTransaction {
+  id                  String    @id @default(cuid())
+  customerId          String
+  amount              Int       // ポイント増減（プラス or マイナス）
+  description         String?   // 付与理由や使用理由（任意）
+  gachaResultId       String?   // 関連するガチャ結果ID（オプション）
+  balanceAtTransaction Int      // トランザクション時のポイント残高
+  createdAt           DateTime  @default(now())
+  customer            Customer  @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+}
+
+enum GachaResultStatus {
+  PENDING          // 初期状態：選択待ち
+  REDEEM_SELECTED  // ポイント償還が選択された
+  SHIPPING_SELECTED // 発送が選択された
+  REDEEMED         // ポイント償還済み
+  FULFILLING       // 発送準備中
+  SHIPPED          // 発送済み
+  DELIVERED        // 配達完了
+  RETURNED         // 返送
+  AUTO_REDEEMED    // 2週間経過による自動償還
+}
+
+model GachaResult {
+  id String @id @default(cuid())
+  customerId String
+  gachaId String
+  cardId String // カードのproductId
+  draftOrderId String? // 下書き注文ID
+  createdAt DateTime @default(now())
+  status GachaResultStatus @default(PENDING)
+  
+  // 重要な状態変更の日時
+  selectionDeadline DateTime        // 選択期限（createdAt + 2週間）
+  selectedAt        DateTime?       // ユーザーが選択した日時
+  redeemedAt        DateTime?       // ポイント償還された日時（手動・自動両方）
+  shippedAt         DateTime?       // 発送された日時
+  deliveredAt       DateTime?       // 配達完了日時
+  
+  // ポイント償還関連
+  rewardPointTransactionId String?  // 関連する報酬ポイントトランザクションID
+  
+  // 配送関連
+  trackingNumber    String?         // 追跡番号
+  shippingAddress   String?         // 配送先住所
+  
+  @@index([customerId])
+  @@index([status])
+}
+
+model InviteCode {
+  id                String    @id @default(cuid())
+  code              String    @unique // 招待コード
+  customerId        String    // 招待コードを所有する顧客ID（unique制約を削除）
+  maxUses           Int       @default(10) // 最大使用回数
+  currentUses       Int       @default(0) // 現在の使用回数
+  resetDate         DateTime? // 使用回数がリセットされる日時
+  expiresAt         DateTime? // 招待コードの有効期限
+  isExpired         Boolean   @default(false) // 有効期限切れフラグ
+  isActive          Boolean   @default(true)  // 現在アクティブな招待コードかどうか
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  customer          Customer  @relation(fields: [customerId], references: [id])
+  
+  @@index([code])
+  @@index([customerId])
+  @@index([expiresAt])
+  @@index([isActive])
+}
+

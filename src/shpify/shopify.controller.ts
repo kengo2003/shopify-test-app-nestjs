@@ -24,16 +24,6 @@ export class ShopifyController {
     return this.shopifyService.updateProduct(id, updateData);
   }
 
-  @Get('customers')
-  async getCustomers() {
-    return this.shopifyService.getCustomers();
-  }
-
-  @Put('customers/:id')
-  async updateCustomer(@Param('id') id: string, @Body() updateData: any) {
-    return this.shopifyService.updateCustomer(id, updateData);
-  }
-
   @Post('checkout')
   async createDraftOrder(
     @Body() body: { productId: string; quantity: number },
